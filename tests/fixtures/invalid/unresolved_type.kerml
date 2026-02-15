@@ -1,3 +1,1 @@
-package P {
-    type A :> NonExistent {}
-}
+../../crates/kermlc/tests/fixtures/invalid/unresolved_type.kerml

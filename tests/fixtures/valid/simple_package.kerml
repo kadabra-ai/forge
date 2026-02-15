@@ -1,6 +1,1 @@
-package Vehicles {
-    type Vehicle {}
-    type Car :> Vehicle {
-        feature wheels : Vehicle [4];
-    }
-}
+../../crates/kermlc/tests/fixtures/valid/simple_package.kerml
