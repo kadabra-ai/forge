@@ -62,6 +62,7 @@ impl<'a> Parser<'a> {
         let mut top_members = Vec::new();
 
         while !parser.at(TokenKind::Eof) {
+            let before = parser.pos;
             match parser.peek() {
                 TokenKind::Package => {
                     if let Some(id) = parser.parse_package() {
@@ -81,12 +82,17 @@ impl<'a> Parser<'a> {
                 TokenKind::Import => {
                     // Top-level imports not attached to a package — skip with error
                     parser.error_at_current("import must be inside a package");
+                    parser.bump();
                     parser.synchronize();
                 }
                 _ => {
                     parser.error_at_current("expected package, type, or feature declaration");
                     parser.synchronize();
                 }
+            }
+            // Safety: ensure we always advance to prevent infinite loops
+            if parser.pos == before && !parser.at(TokenKind::Eof) {
+                parser.bump();
             }
         }
 
@@ -207,6 +213,7 @@ impl<'a> Parser<'a> {
         }
 
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            let before = self.pos;
             match self.peek() {
                 TokenKind::Import => {
                     if let Some(import) = self.parse_import() {
@@ -234,6 +241,10 @@ impl<'a> Parser<'a> {
                     );
                     self.synchronize();
                 }
+            }
+            // Safety: ensure we always advance to prevent infinite loops
+            if self.pos == before && !self.at(TokenKind::Eof) {
+                self.bump();
             }
         }
 
@@ -325,6 +336,7 @@ impl<'a> Parser<'a> {
         if self.at(TokenKind::LBrace) {
             self.bump();
             while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+                let before = self.pos;
                 match self.peek() {
                     TokenKind::Type => {
                         if let Some(id) = self.parse_type_decl() {
@@ -340,6 +352,10 @@ impl<'a> Parser<'a> {
                         self.error_at_current("expected type or feature declaration");
                         self.synchronize();
                     }
+                }
+                // Safety: ensure we always advance to prevent infinite loops
+                if self.pos == before && !self.at(TokenKind::Eof) {
+                    self.bump();
                 }
             }
             if self.at(TokenKind::RBrace) {
