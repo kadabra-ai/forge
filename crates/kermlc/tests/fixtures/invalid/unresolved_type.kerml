@@ -1,3 +1,3 @@
 package P {
-    type A :> NonExistent {}
+    type A :> DoesNotExist {}
 }

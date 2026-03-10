@@ -2,8 +2,9 @@ pub mod pipeline;
 
 use clap::{Parser, Subcommand};
 use kermlc_diagnostics::{render_diagnostics, DiagnosticSink, SourceMap};
-use kermlc_hir::{load_stdlib, lower_ast};
+use kermlc_hir::{add_implicit_specializations, load_stdlib, lower_ast};
 use kermlc_intern::StringInterner;
+use kermlc_resolve::detect_specialization_cycles;
 use kermlc_serial_json::serialize_to_json;
 use kermlc_validate::validate;
 use std::process;
@@ -84,13 +85,15 @@ fn run_check(file_path: &str) -> i32 {
     // Lower to HIR
     let mut model = lower_ast(&parse, &interner, &mut sink);
 
-    // Load stdlib
-    load_stdlib(&mut model, &mut interner);
+    // Load stdlib + implicit specializations
+    let stdlib = load_stdlib(&mut model, &mut interner);
+    add_implicit_specializations(&mut model, &stdlib);
 
     // Resolve + typecheck
     resolve_and_typecheck(&mut model, &interner, &mut sink);
 
-    // Validate
+    // Detect cycles + validate
+    detect_specialization_cycles(&model, &interner, &mut sink);
     validate(&model, &interner, &mut sink);
 
     // Render diagnostics
@@ -132,13 +135,15 @@ fn run_compile(file_path: &str, output_path: &str, format: &str) -> i32 {
     // Lower to HIR
     let mut model = lower_ast(&parse, &interner, &mut sink);
 
-    // Load stdlib
-    load_stdlib(&mut model, &mut interner);
+    // Load stdlib + implicit specializations
+    let stdlib = load_stdlib(&mut model, &mut interner);
+    add_implicit_specializations(&mut model, &stdlib);
 
     // Resolve + typecheck
     resolve_and_typecheck(&mut model, &interner, &mut sink);
 
-    // Validate
+    // Detect cycles + validate
+    detect_specialization_cycles(&model, &interner, &mut sink);
     validate(&model, &interner, &mut sink);
 
     // Render diagnostics

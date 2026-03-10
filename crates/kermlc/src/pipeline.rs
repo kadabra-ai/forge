@@ -1,7 +1,7 @@
 use kermlc_diagnostics::DiagnosticSink;
 use kermlc_hir::SemanticModel;
 use kermlc_intern::StringInterner;
-use kermlc_resolve::{emit_unresolved_errors, resolve_pass};
+use kermlc_resolve::{detect_specialization_cycles, emit_unresolved_errors, resolve_pass};
 use kermlc_typeck::typecheck_pass;
 
 const MAX_ITERATIONS: usize = 100;
@@ -23,6 +23,8 @@ pub fn resolve_and_typecheck(
     }
     // Emit diagnostics for anything still unresolved
     emit_unresolved_errors(model, interner, sink);
+    // Detect circular specialization chains
+    detect_specialization_cycles(model, interner, sink);
 }
 
 #[cfg(test)]

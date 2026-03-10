@@ -80,6 +80,84 @@ pub fn emit_unresolved_errors(
     }
 }
 
+/// Detect cycles in the specialization graph among resolved types.
+/// Returns `true` if any cycle was found, emitting diagnostics.
+///
+/// Uses iterative DFS with three colors:
+/// - white (unvisited), gray (in current path), black (fully explored).
+pub fn detect_specialization_cycles(
+    model: &SemanticModel,
+    interner: &StringInterner,
+    sink: &mut DiagnosticSink,
+) -> bool {
+    let all_defs: Vec<DefId> = model
+        .defs
+        .iter()
+        .filter(|(_, d)| d.kind == kermlc_hir::DefKind::Type)
+        .map(|(id, _)| id)
+        .collect();
+
+    #[derive(Clone, Copy, PartialEq)]
+    enum Color { White, Gray, Black }
+
+    let capacity = model.defs.len();
+    let mut color = vec![Color::White; capacity];
+    let mut found_cycle = false;
+
+    for start in &all_defs {
+        if color[start.raw() as usize] != Color::White {
+            continue;
+        }
+
+        // Iterative DFS using an explicit stack
+        let mut stack: Vec<(DefId, bool)> = vec![(*start, false)];
+        while let Some((node, returning)) = stack.pop() {
+            let idx = node.raw() as usize;
+
+            if returning {
+                color[idx] = Color::Black;
+                continue;
+            }
+
+            if color[idx] == Color::Black {
+                continue;
+            }
+
+            if color[idx] == Color::Gray {
+                // Back edge — cycle detected
+                let name = interner.resolve(model.defs[node].name);
+                sink.emit(
+                    Diagnostic::error(format!(
+                        "circular specialization: `{}` is part \
+                         of a specialization cycle",
+                        name
+                    ))
+                    .with_label(Label::primary(
+                        model.defs[node].span,
+                        "cycle detected here",
+                    )),
+                );
+                found_cycle = true;
+                continue;
+            }
+
+            color[idx] = Color::Gray;
+            // Push return marker
+            stack.push((node, true));
+
+            // Push resolved specialization targets
+            for spec in &model.defs[node].specializations {
+                if let ResolutionState::Resolved(target) = spec.resolution
+                {
+                    stack.push((target, false));
+                }
+            }
+        }
+    }
+
+    found_cycle
+}
+
 fn segments_to_string(segments: &[kermlc_intern::SymbolId], interner: &StringInterner) -> String {
     segments
         .iter()
@@ -305,5 +383,61 @@ mod tests {
         // Emit errors for unresolved names
         emit_unresolved_errors(&model, &interner, &mut sink);
         assert!(sink.has_errors());
+    }
+
+    #[test]
+    fn direct_cycle_detected_as_error() {
+        // A :> B, B :> A — direct cycle
+        let (mut model, interner, mut sink) =
+            parse_and_lower("package P { type A :> B {} type B :> A {} }");
+
+        // Resolve names first
+        resolve_pass(&mut model, &interner, &mut sink);
+
+        // Detect cycles
+        let found = detect_specialization_cycles(&model, &interner, &mut sink);
+        assert!(found, "should detect cycle between A and B");
+        assert!(sink.has_errors());
+    }
+
+    #[test]
+    fn self_cycle_detected_as_error() {
+        // A :> A — self-referential
+        let (mut model, interner, mut sink) =
+            parse_and_lower("package P { type A :> A {} }");
+
+        resolve_pass(&mut model, &interner, &mut sink);
+
+        let found = detect_specialization_cycles(&model, &interner, &mut sink);
+        assert!(found, "should detect self-cycle on A");
+        assert!(sink.has_errors());
+    }
+
+    #[test]
+    fn transitive_cycle_detected() {
+        // A :> B, B :> C, C :> A — 3-node cycle
+        let (mut model, interner, mut sink) = parse_and_lower(
+            "package P { type A :> B {} type B :> C {} type C :> A {} }",
+        );
+
+        resolve_pass(&mut model, &interner, &mut sink);
+
+        let found = detect_specialization_cycles(&model, &interner, &mut sink);
+        assert!(found, "should detect transitive cycle A -> B -> C -> A");
+        assert!(sink.has_errors());
+    }
+
+    #[test]
+    fn no_cycle_in_valid_chain() {
+        // A :> B, B :> C — no cycle
+        let (mut model, interner, mut sink) = parse_and_lower(
+            "package P { type C {} type B :> C {} type A :> B {} }",
+        );
+
+        resolve_pass(&mut model, &interner, &mut sink);
+
+        let found = detect_specialization_cycles(&model, &interner, &mut sink);
+        assert!(!found, "should not detect cycle in a valid chain");
+        assert!(!sink.has_errors());
     }
 }

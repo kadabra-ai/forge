@@ -35,59 +35,59 @@ Source Files (.kerml)
        │
        ▼
    ┌─────────┐
-   │  Lexer   │  → Token stream
-   └────┬─────┘
+   │  Lexer  │  → Token stream
+   └────┬────┘
         │
    ┌────▼─────┐
-   │  Parser   │  → Untyped AST (in AstArena)
+   │  Parser  │  → Untyped AST (in AstArena)
    └────┬─────┘
         │
-   ┌────▼──────────────┐
+   ┌────▼───────────────┐
    │  AST Lowering      │  → Semantic model skeleton (in DefArena + TypeArena)
-   │  + Library Loading  │     Loads Kernel Semantic Library
-   └────┬──────────────┘
+   │  + Library Loading │     Loads Kernel Semantic Library
+   └────┬───────────────┘
         │
-   ┌────▼──────────────────────┐
-   │  Resolution Loop (fixpoint)│
-   │  ┌──────────┐ ┌─────────┐ │
-   │  │ Name Res │↔│ Type Ck ││  → Resolved + typed semantic model
-   │  └──────────┘ └─────────┘ │
-   └────┬──────────────────────┘
+   ┌────▼────────────────────────┐
+   │  Resolution Loop (fixpoint) │
+   │  ┌──────────┐ ┌─────────┐   │
+   │  │ Name Res │↔│ Type Ck │   │  → Resolved + typed semantic model
+   │  └──────────┘ └─────────┘   │
+   └────┬────────────────────────┘
         │
    ┌────▼─────────┐
-   │  Validation   │  → Diagnostics (errors, warnings)
+   │  Validation  │  → Diagnostics (errors, warnings)
    └────┬─────────┘
         │
    ┌────▼─────────────┐
-   │  Serialization    │  → JSON-LD / XMI / API
-   │  (pluggable)      │
+   │  Serialization   │  → JSON-LD / XMI / API
+   │  (pluggable)     │
    └──────────────────┘
 ```
 
 ## Crate Structure (Cargo Workspace)
 
-| Crate | Purpose |
-|-------|---------|
-| `kermlc` | Compiler binary (like rustc) |
-| `kermlc_lexer` | Tokenization |
-| `kermlc_parser` | Recursive descent parser → AST |
-| `kermlc_ast` | AST node definitions + AstArena |
-| `kermlc_hir` | High-level IR / semantic model + DefArena, TypeArena |
-| `kermlc_resolve` | Name resolution |
-| `kermlc_typeck` | Type checking + conjugation |
-| `kermlc_validate` | Semantic validation |
-| `kermlc_diagnostics` | Error/warning types, rendering, source spans |
-| `kermlc_serial_json` | JSON-LD serialization backend |
-| `kermlc_serial_xmi` | XMI serialization backend |
-| `kermlc_intern` | String interner + index-based arena infrastructure |
-| `kermlc_project` | Manifest parsing, dependency resolution, package fetching |
+| Crate                | Purpose                                                   |
+|----------------------|-----------------------------------------------------------|
+| `kermlc`             | Compiler binary (like rustc)                              |
+| `kermlc_lexer`       | Tokenization                                              |
+| `kermlc_parser`      | Recursive descent parser → AST                            |
+| `kermlc_ast`         | AST node definitions + AstArena                           |
+| `kermlc_hir`         | High-level IR / semantic model + DefArena, TypeArena      |
+| `kermlc_resolve`     | Name resolution                                           |
+| `kermlc_typeck`      | Type checking + conjugation                               |
+| `kermlc_validate`    | Semantic validation                                       |
+| `kermlc_diagnostics` | Error/warning types, rendering, source spans              |
+| `kermlc_serial_json` | JSON-LD serialization backend                             |
+| `kermlc_serial_xmi`  | XMI serialization backend                                 |
+| `kermlc_intern`      | String interner + index-based arena infrastructure        |
+| `kermlc_project`     | Manifest parsing, dependency resolution, package fetching |
 
 **Separate binary (different repo/workspace later):**
 
-| Crate | Purpose |
-|-------|---------|
-| `forge` | Project management CLI (like cargo). Invokes `kermlc` for compilation. |
-| `forge_registry` | Systems Modeling API client, KPAR archive read/write |
+| Crate            | Purpose                                                                |
+|------------------|------------------------------------------------------------------------|
+| `forge`          | Project management CLI (like cargo). Invokes `kermlc` for compilation. |
+| `forge_registry` | Systems Modeling API client, KPAR archive read/write                   |
 
 All `kermlc_*` crates except `kermlc` (the binary) are libraries, enabling SysML v2/v1 and `forge` to build on top.
 
@@ -106,8 +106,8 @@ SysML v2 source (.sysml)          KerML source (.kerml)
                               ▼            ▼
                     ┌─── KerML HIR (shared) ───┐
                     │  resolve ↔ typeck loop   │
-                    │  validation               │
-                    │  serialization             │
+                    │  validation              │
+                    │  serialization           │
                     └──────────────────────────┘
 ```
 

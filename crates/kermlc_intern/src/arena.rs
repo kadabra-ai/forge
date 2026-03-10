@@ -5,6 +5,10 @@ use std::ops::{Index, IndexMut};
 /// The phantom type parameter ensures you can't use an Idx<A> to index Arena<B>.
 pub struct Idx<T> {
     raw: u32,
+    // PhantomData<fn() -> T> - still covariant in T (because T appears in return position),
+    // but a function pointer has no ownership semantics. So Idx<T> is
+    // automatically Send + Sync regardless of whether T is, which is
+    // correct since it's just an integer index.
     _marker: PhantomData<fn() -> T>,
 }
 

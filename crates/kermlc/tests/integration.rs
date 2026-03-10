@@ -1,7 +1,7 @@
 use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-use kermlc_hir::{load_stdlib, lower_ast, SemanticModel};
+use kermlc_hir::{add_implicit_specializations, load_stdlib, lower_ast, SemanticModel};
 use kermlc_intern::StringInterner;
-use kermlc_resolve::{emit_unresolved_errors, resolve_pass};
+use kermlc_resolve::{detect_specialization_cycles, emit_unresolved_errors, resolve_pass};
 use kermlc_serial_json::serialize_to_json;
 use kermlc_typeck::typecheck_pass;
 use kermlc_validate::validate;
@@ -15,7 +15,8 @@ fn compile_source(source: &str) -> CompileResult {
 
     let parse = kermlc_parser::Parser::parse(source, file_id, &mut interner, &mut sink);
     let mut model = lower_ast(&parse, &interner, &mut sink);
-    load_stdlib(&mut model, &mut interner);
+    let stdlib = load_stdlib(&mut model, &mut interner);
+    add_implicit_specializations(&mut model, &stdlib);
 
     // Fixpoint loop
     for _ in 0..100 {
@@ -26,6 +27,7 @@ fn compile_source(source: &str) -> CompileResult {
         }
     }
     emit_unresolved_errors(&model, &interner, &mut sink);
+    detect_specialization_cycles(&model, &interner, &mut sink);
     validate(&model, &interner, &mut sink);
 
     CompileResult {
