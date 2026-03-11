@@ -587,33 +587,14 @@ impl<'a> Parser<'a> {
         let start = self.current_span();
         self.expect(TokenKind::LBracket)?;
 
-        let mut lower = None;
-        let mut upper = None;
+        let first = self.parse_expr_atom()?;
 
-        if self.at(TokenKind::Star) {
-            let star_span = self.bump().span;
-            upper = Some(Expr::Star { span: star_span });
-        } else if self.at(TokenKind::IntLiteral)
-            || self.at(TokenKind::Ident)
-        {
-            let first = self.parse_expr_atom()?;
-
-            if self.at(TokenKind::DotDot) {
-                self.bump();
-                lower = Some(first);
-                if self.at(TokenKind::Star) {
-                    let star_span = self.bump().span;
-                    upper = Some(Expr::Star { span: star_span });
-                } else if self.at(TokenKind::IntLiteral)
-                    || self.at(TokenKind::Ident)
-                {
-                    upper = self.parse_expr_atom();
-                }
-            } else {
-                // Single value: both lower and upper are the same
-                upper = Some(first);
-            }
-        }
+        let (lower, upper) = if self.at(TokenKind::DotDot) {
+            self.bump();
+            (Some(first), self.parse_expr_atom())
+        } else {
+            (None, Some(first))
+        };
 
         let end = self.current_span();
         self.expect(TokenKind::RBracket);
@@ -875,5 +856,72 @@ mod tests {
             }
             _ => panic!("expected TypeExpr::Conjugated"),
         }
+    }
+
+    #[test]
+    fn parse_multiplicity_name_exact() {
+        let (result, _interner, sink) =
+            parse("package P { type T { feature x : T [n]; } }");
+        assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
+        let pkg = &result.packages[result.source_file.packages[0]];
+        let feat_id = match &pkg.members[0] {
+            Member::Type(id) => {
+                match &result.types[*id].members[0] {
+                    Member::Feature(fid) => *fid,
+                    _ => panic!("expected feature"),
+                }
+            }
+            _ => panic!("expected type"),
+        };
+        let feat = &result.features[feat_id];
+        let mult =
+            feat.multiplicity.as_ref().expect("should have multiplicity");
+        assert!(mult.lower.is_none(), "exact mult should have no lower");
+        assert!(matches!(mult.upper, Some(Expr::Name { .. })));
+    }
+
+    #[test]
+    fn parse_multiplicity_name_range() {
+        let (_result, _interner, sink) =
+            parse("package P { type T { feature x : T [a..b]; } }");
+        assert!(
+            !sink.has_errors(),
+            "errors: {:?}",
+            sink.diagnostics()
+        );
+    }
+
+    #[test]
+    fn parse_multiplicity_int_to_name() {
+        let (_result, _interner, sink) =
+            parse("package P { type T { feature x : T [1..n]; } }");
+        assert!(
+            !sink.has_errors(),
+            "errors: {:?}",
+            sink.diagnostics()
+        );
+    }
+
+    #[test]
+    fn parse_multiplicity_name_to_star() {
+        let (_result, _interner, sink) =
+            parse("package P { type T { feature x : T [n..*]; } }");
+        assert!(
+            !sink.has_errors(),
+            "errors: {:?}",
+            sink.diagnostics()
+        );
+    }
+
+    #[test]
+    fn parse_multiplicity_qualified_name() {
+        let (_result, _interner, sink) = parse(
+            "package P { type T { feature x : T [Pkg::count]; } }",
+        );
+        assert!(
+            !sink.has_errors(),
+            "errors: {:?}",
+            sink.diagnostics()
+        );
     }
 }
