@@ -66,10 +66,7 @@ impl<'a> LowerCtx<'a> {
 
     /// Lower a member, returning the primary DefId plus any
     /// synthesized siblings (e.g. anonymous conjugated types).
-    fn lower_member(
-        &mut self,
-        member: &kermlc_ast::Member,
-    ) -> Vec<DefId> {
+    fn lower_member(&mut self, member: &kermlc_ast::Member) -> Vec<DefId> {
         match member {
             kermlc_ast::Member::Package(id) => {
                 vec![self.lower_package(*id)]
@@ -77,9 +74,7 @@ impl<'a> LowerCtx<'a> {
             kermlc_ast::Member::Type(id) => {
                 vec![self.lower_type(*id)]
             }
-            kermlc_ast::Member::Feature(id) => {
-                self.lower_feature(*id)
-            }
+            kermlc_ast::Member::Feature(id) => self.lower_feature(*id),
             kermlc_ast::Member::Conjugation(id) => {
                 vec![self.lower_conjugation_decl(*id)]
             }
@@ -115,10 +110,7 @@ impl<'a> LowerCtx<'a> {
 
     /// Lower a feature declaration, returning the feature DefId
     /// plus any synthesized anonymous types as siblings.
-    fn lower_feature(
-        &mut self,
-        feat_id: kermlc_ast::FeatureDeclId,
-    ) -> Vec<DefId> {
+    fn lower_feature(&mut self, feat_id: kermlc_ast::FeatureDeclId) -> Vec<DefId> {
         let feat = &self.parse.features[feat_id];
         let mut def = Def::new(feat.name, DefKind::Feature, feat.span);
         let mut extra_siblings = Vec::new();
@@ -129,14 +121,10 @@ impl<'a> LowerCtx<'a> {
         // Lower type reference
         match &feat.type_ref {
             Some(kermlc_ast::TypeExpr::Named(qn)) => {
-                def.type_ref = Some(NameRef::unresolved(
-                    qn.segments.clone(),
-                    qn.span,
-                ));
+                def.type_ref = Some(NameRef::unresolved(qn.segments.clone(), qn.span));
             }
             Some(kermlc_ast::TypeExpr::Conjugated(qn, span)) => {
-                let anon_id =
-                    self.synthesize_conjugated_type(qn, *span);
+                let anon_id = self.synthesize_conjugated_type(qn, *span);
                 def.type_ref = Some(NameRef {
                     segments: vec![],
                     span: *span,
@@ -152,19 +140,14 @@ impl<'a> LowerCtx<'a> {
 
         // Lower conjugation
         if let Some(conj) = &feat.conjugation {
-            def.conjugation = Some(NameRef::unresolved(
-                conj.segments.clone(),
-                conj.span,
-            ));
+            def.conjugation = Some(NameRef::unresolved(conj.segments.clone(), conj.span));
         }
 
         // Lower feature chain
         if let Some(chain) = &feat.chain {
             for seg in &chain.segments {
-                def.chain_segments.push(NameRef::unresolved(
-                    seg.segments.clone(),
-                    seg.span,
-                ));
+                def.chain_segments
+                    .push(NameRef::unresolved(seg.segments.clone(), seg.span));
             }
         }
 
@@ -199,13 +182,9 @@ impl<'a> LowerCtx<'a> {
         original: &kermlc_ast::QualifiedName,
         span: kermlc_diagnostics::Span,
     ) -> DefId {
-        let last_seg = *original
-            .segments
-            .last()
-            .expect("empty qualified name");
+        let last_seg = *original.segments.last().expect("empty qualified name");
         let orig_name = self.interner.resolve(last_seg);
-        let synth_name =
-            self.interner.intern(&format!("~{orig_name}"));
+        let synth_name = self.interner.intern(&format!("~{orig_name}"));
 
         let mut anon_def = Def::new(synth_name, DefKind::Type, span);
         anon_def.conjugation = Some(NameRef::unresolved(
@@ -240,10 +219,9 @@ fn lower_expr_to_bound(expr: &kermlc_ast::Expr) -> MultBound {
     match expr {
         kermlc_ast::Expr::IntLiteral { value, .. } => MultBound::Exact(*value),
         kermlc_ast::Expr::Star { .. } => MultBound::Unbounded,
-        kermlc_ast::Expr::Name { name } => MultBound::Ref(NameRef::unresolved(
-            name.segments.clone(),
-            name.span,
-        )),
+        kermlc_ast::Expr::Name { name } => {
+            MultBound::Ref(NameRef::unresolved(name.segments.clone(), name.span))
+        }
         kermlc_ast::Expr::BinOp { .. } => MultBound::Exact(0),
     }
 }
@@ -395,11 +373,13 @@ mod tests {
 
         assert!(
             matches!(mult.lower, MultBound::Exact(1)),
-            "lower should be Exact(1), got {:?}", mult.lower
+            "lower should be Exact(1), got {:?}",
+            mult.lower
         );
         assert!(
             matches!(mult.upper, MultBound::Ref(_)),
-            "upper should be Ref, got {:?}", mult.upper
+            "upper should be Ref, got {:?}",
+            mult.upper
         );
         if let MultBound::Ref(ref name_ref) = mult.upper {
             assert_eq!(name_ref.resolution, ResolutionState::Unresolved);
@@ -409,8 +389,7 @@ mod tests {
 
     #[test]
     fn lower_multiplicity_exact_unchanged() {
-        let (model, _interner, sink) =
-            lower("package P { type T { feature x : T [0..1]; } }");
+        let (model, _interner, sink) = lower("package P { type T { feature x : T [0..1]; } }");
         assert!(!sink.has_errors());
         let pkg = &model.defs[model.roots[0]];
         let ty = &model.defs[pkg.children[0]];
@@ -422,8 +401,7 @@ mod tests {
 
     #[test]
     fn lower_multiplicity_star_unchanged() {
-        let (model, _interner, sink) =
-            lower("package P { type T { feature x : T [0..*]; } }");
+        let (model, _interner, sink) = lower("package P { type T { feature x : T [0..*]; } }");
         assert!(!sink.has_errors());
         let pkg = &model.defs[model.roots[0]];
         let ty = &model.defs[pkg.children[0]];

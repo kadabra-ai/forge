@@ -486,11 +486,7 @@ impl<'a> Parser<'a> {
                 let conj_start = self.current_span();
                 self.bump();
                 if let Some(qn) = self.parse_qualified_name() {
-                    let span = Span::new(
-                        conj_start.file,
-                        conj_start.start,
-                        qn.span.end,
-                    );
+                    let span = Span::new(conj_start.file, conj_start.start, qn.span.end);
                     type_ref = Some(TypeExpr::Conjugated(qn, span));
                 }
             } else if let Some(qn) = self.parse_qualified_name() {
@@ -807,8 +803,7 @@ mod tests {
 
     #[test]
     fn parse_inline_conjugated_type_ref() {
-        let (result, interner, sink) =
-            parse("package P { type T { feature f : ~T; } }");
+        let (result, interner, sink) = parse("package P { type T { feature f : ~T; } }");
         assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
         let pkg = &result.packages[result.source_file.packages[0]];
         let Member::Type(ty_id) = &pkg.members[0] else {
@@ -836,8 +831,7 @@ mod tests {
 
     #[test]
     fn parse_inline_conjugated_type_ref_qualified() {
-        let (result, interner, sink) =
-            parse("package P { type T { feature f : ~A::B; } }");
+        let (result, interner, sink) = parse("package P { type T { feature f : ~A::B; } }");
         assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
         let pkg = &result.packages[result.source_file.packages[0]];
         let Member::Type(ty_id) = &pkg.members[0] else {
@@ -860,68 +854,47 @@ mod tests {
 
     #[test]
     fn parse_multiplicity_name_exact() {
-        let (result, _interner, sink) =
-            parse("package P { type T { feature x : T [n]; } }");
+        let (result, _interner, sink) = parse("package P { type T { feature x : T [n]; } }");
         assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
         let pkg = &result.packages[result.source_file.packages[0]];
         let feat_id = match &pkg.members[0] {
-            Member::Type(id) => {
-                match &result.types[*id].members[0] {
-                    Member::Feature(fid) => *fid,
-                    _ => panic!("expected feature"),
-                }
-            }
+            Member::Type(id) => match &result.types[*id].members[0] {
+                Member::Feature(fid) => *fid,
+                _ => panic!("expected feature"),
+            },
             _ => panic!("expected type"),
         };
         let feat = &result.features[feat_id];
-        let mult =
-            feat.multiplicity.as_ref().expect("should have multiplicity");
+        let mult = feat
+            .multiplicity
+            .as_ref()
+            .expect("should have multiplicity");
         assert!(mult.lower.is_none(), "exact mult should have no lower");
         assert!(matches!(mult.upper, Some(Expr::Name { .. })));
     }
 
     #[test]
     fn parse_multiplicity_name_range() {
-        let (_result, _interner, sink) =
-            parse("package P { type T { feature x : T [a..b]; } }");
-        assert!(
-            !sink.has_errors(),
-            "errors: {:?}",
-            sink.diagnostics()
-        );
+        let (_result, _interner, sink) = parse("package P { type T { feature x : T [a..b]; } }");
+        assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
     }
 
     #[test]
     fn parse_multiplicity_int_to_name() {
-        let (_result, _interner, sink) =
-            parse("package P { type T { feature x : T [1..n]; } }");
-        assert!(
-            !sink.has_errors(),
-            "errors: {:?}",
-            sink.diagnostics()
-        );
+        let (_result, _interner, sink) = parse("package P { type T { feature x : T [1..n]; } }");
+        assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
     }
 
     #[test]
     fn parse_multiplicity_name_to_star() {
-        let (_result, _interner, sink) =
-            parse("package P { type T { feature x : T [n..*]; } }");
-        assert!(
-            !sink.has_errors(),
-            "errors: {:?}",
-            sink.diagnostics()
-        );
+        let (_result, _interner, sink) = parse("package P { type T { feature x : T [n..*]; } }");
+        assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
     }
 
     #[test]
     fn parse_multiplicity_qualified_name() {
-        let (_result, _interner, sink) = parse(
-            "package P { type T { feature x : T [Pkg::count]; } }",
-        );
-        assert!(
-            !sink.has_errors(),
-            "errors: {:?}",
-            sink.diagnostics()
-        );
+        let (_result, _interner, sink) =
+            parse("package P { type T { feature x : T [Pkg::count]; } }");
+        assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
     }
 }

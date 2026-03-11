@@ -242,9 +242,7 @@ fn validate_feature(
 
     // Validate multiplicity bounds
     if let Some(mult) = &def.multiplicity {
-        if let (MultBound::Exact(lower), MultBound::Exact(upper)) =
-            (&mult.lower, &mult.upper)
-        {
+        if let (MultBound::Exact(lower), MultBound::Exact(upper)) = (&mult.lower, &mult.upper) {
             if lower > upper {
                 sink.emit(
                     Diagnostic::error(format!(

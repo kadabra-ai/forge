@@ -103,16 +103,13 @@ pub fn emit_unresolved_errors(
             for bound in [&mult.lower, &mult.upper] {
                 if let kermlc_hir::MultBound::Ref(ref r) = bound {
                     if r.resolution == ResolutionState::Unresolved {
-                        let name_str =
-                            segments_to_string(&r.segments, interner);
+                        let name_str = segments_to_string(&r.segments, interner);
                         sink.emit(
                             Diagnostic::error(format!(
                                 "unresolved multiplicity bound `{}`",
                                 name_str
                             ))
-                            .with_label(Label::primary(
-                                r.span, "not found",
-                            )),
+                            .with_label(Label::primary(r.span, "not found")),
                         );
                     }
                 }
@@ -333,28 +330,18 @@ fn resolve_chains_for(model: &mut SemanticModel, def_id: DefId) -> bool {
     changed
 }
 
-fn resolve_multiplicity_refs_for(
-    model: &mut SemanticModel,
-    def_id: DefId,
-) -> bool {
+fn resolve_multiplicity_refs_for(model: &mut SemanticModel, def_id: DefId) -> bool {
     let mut changed = false;
 
     if let Some(ref mult) = model.defs[def_id].multiplicity {
         if let kermlc_hir::MultBound::Ref(ref name_ref) = mult.lower {
             if name_ref.resolution == ResolutionState::Unresolved {
                 let segments = name_ref.segments.clone();
-                if let Some(resolved) =
-                    try_resolve_name(model, def_id, &segments)
-                {
+                if let Some(resolved) = try_resolve_name(model, def_id, &segments) {
                     if let kermlc_hir::MultBound::Ref(ref mut r) =
-                        model.defs[def_id]
-                            .multiplicity
-                            .as_mut()
-                            .unwrap()
-                            .lower
+                        model.defs[def_id].multiplicity.as_mut().unwrap().lower
                     {
-                        r.resolution =
-                            ResolutionState::Resolved(resolved);
+                        r.resolution = ResolutionState::Resolved(resolved);
                         changed = true;
                     }
                 }
@@ -366,18 +353,11 @@ fn resolve_multiplicity_refs_for(
         if let kermlc_hir::MultBound::Ref(ref name_ref) = mult.upper {
             if name_ref.resolution == ResolutionState::Unresolved {
                 let segments = name_ref.segments.clone();
-                if let Some(resolved) =
-                    try_resolve_name(model, def_id, &segments)
-                {
+                if let Some(resolved) = try_resolve_name(model, def_id, &segments) {
                     if let kermlc_hir::MultBound::Ref(ref mut r) =
-                        model.defs[def_id]
-                            .multiplicity
-                            .as_mut()
-                            .unwrap()
-                            .upper
+                        model.defs[def_id].multiplicity.as_mut().unwrap().upper
                     {
-                        r.resolution =
-                            ResolutionState::Resolved(resolved);
+                        r.resolution = ResolutionState::Resolved(resolved);
                         changed = true;
                     }
                 }
@@ -571,14 +551,9 @@ mod tests {
 
     #[test]
     fn resolve_multiplicity_feature_ref() {
-        let (mut model, interner, mut sink) = parse_and_lower(
-            "package P { type T { feature n : T; feature x : T [1..n]; } }",
-        );
-        assert!(
-            !sink.has_errors(),
-            "parse errors: {:?}",
-            sink.diagnostics()
-        );
+        let (mut model, interner, mut sink) =
+            parse_and_lower("package P { type T { feature n : T; feature x : T [1..n]; } }");
+        assert!(!sink.has_errors(), "parse errors: {:?}", sink.diagnostics());
 
         resolve_pass(&mut model, &interner, &mut sink);
 
@@ -596,18 +571,14 @@ mod tests {
                 "multiplicity ref 'n' should resolve to the feature"
             );
         } else {
-            panic!(
-                "upper bound should be MultBound::Ref, got {:?}",
-                mult.upper
-            );
+            panic!("upper bound should be MultBound::Ref, got {:?}", mult.upper);
         }
     }
 
     #[test]
     fn unresolved_multiplicity_ref_produces_error() {
-        let (mut model, interner, mut sink) = parse_and_lower(
-            "package P { type T { feature x : T [1..noSuchFeature]; } }",
-        );
+        let (mut model, interner, mut sink) =
+            parse_and_lower("package P { type T { feature x : T [1..noSuchFeature]; } }");
 
         resolve_pass(&mut model, &interner, &mut sink);
         emit_unresolved_errors(&model, &interner, &mut sink);

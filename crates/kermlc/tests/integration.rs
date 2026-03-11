@@ -315,9 +315,7 @@ fn valid_feature_conjugation() {
 
 #[test]
 fn valid_inline_conjugation() {
-    let result = compile_file(
-        &fixtures_dir().join("valid/inline_conjugation.kerml"),
-    );
+    let result = compile_file(&fixtures_dir().join("valid/inline_conjugation.kerml"));
     assert!(
         !result.sink.has_errors(),
         "Errors in inline_conjugation.kerml: {:?}",
@@ -330,10 +328,7 @@ fn valid_inline_conjugation() {
     // Find Wrapper type
     let wrapper_id = children
         .iter()
-        .find(|&&c| {
-            result.interner.resolve(result.model.defs[c].name)
-                == "Wrapper"
-        })
+        .find(|&&c| result.interner.resolve(result.model.defs[c].name) == "Wrapper")
         .copied()
         .expect("Wrapper not found");
 
@@ -341,19 +336,14 @@ fn valid_inline_conjugation() {
     let port_id = result.model.defs[wrapper_id]
         .children
         .iter()
-        .find(|&&c| {
-            result.interner.resolve(result.model.defs[c].name) == "port"
-        })
+        .find(|&&c| result.interner.resolve(result.model.defs[c].name) == "port")
         .copied()
         .expect("port feature not found");
 
     let port = &result.model.defs[port_id];
     assert!(port.type_ref.is_some(), "port should have type_ref");
     let type_ref = port.type_ref.as_ref().unwrap();
-    assert!(
-        type_ref.is_resolved(),
-        "port type_ref should be resolved"
-    );
+    assert!(type_ref.is_resolved(), "port type_ref should be resolved");
 
     // The anonymous type should have conjugation-flipped features
     let anon_id = type_ref.resolved_def().unwrap();
@@ -374,9 +364,7 @@ fn valid_inline_conjugation() {
 
     for inh in &anon.inherited_features {
         assert_eq!(inh.kind, InheritanceKind::Conjugation);
-        let feat_name = result
-            .interner
-            .resolve(result.model.defs[inh.def_id].name);
+        let feat_name = result.interner.resolve(result.model.defs[inh.def_id].name);
         match feat_name {
             "input" => assert_eq!(
                 inh.direction_override,
@@ -393,11 +381,7 @@ fn valid_inline_conjugation() {
                 Some(FeatureDirection::InOut),
                 "inout stays inout"
             ),
-            "data" => assert_eq!(
-                inh.direction_override,
-                None,
-                "no direction stays None"
-            ),
+            "data" => assert_eq!(inh.direction_override, None, "no direction stays None"),
             other => panic!("unexpected feature: {other}"),
         }
     }
@@ -435,9 +419,7 @@ fn valid_direction() {
 
 #[test]
 fn valid_multiplicity_feature_ref() {
-    let result = compile_file(
-        &fixtures_dir().join("valid/multiplicity_feature_ref.kerml"),
-    );
+    let result = compile_file(&fixtures_dir().join("valid/multiplicity_feature_ref.kerml"));
     assert!(
         !result.sink.has_errors(),
         "Errors in multiplicity_feature_ref.kerml: {:?}",
@@ -498,10 +480,7 @@ fn invalid_feature_conjugates_type() {
 
 #[test]
 fn invalid_multiplicity_unresolved_ref() {
-    let result = compile_file(
-        &fixtures_dir()
-            .join("invalid/multiplicity_unresolved_ref.kerml"),
-    );
+    let result = compile_file(&fixtures_dir().join("invalid/multiplicity_unresolved_ref.kerml"));
     assert!(
         result.sink.has_errors(),
         "Expected errors for unresolved multiplicity ref"

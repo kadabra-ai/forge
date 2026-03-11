@@ -262,10 +262,7 @@ mod tests {
 
     #[test]
     fn mult_bound_ref_is_not_copy() {
-        let nr = NameRef::unresolved(
-            vec![],
-            Span::new(kermlc_diagnostics::FileId(0), 0, 0),
-        );
+        let nr = NameRef::unresolved(vec![], Span::new(kermlc_diagnostics::FileId(0), 0, 0));
         let bound = MultBound::Ref(nr);
         let _cloned = bound.clone();
     }

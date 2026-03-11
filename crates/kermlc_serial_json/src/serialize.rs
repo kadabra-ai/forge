@@ -201,22 +201,19 @@ fn mult_bound_to_json(
     match bound {
         kermlc_hir::MultBound::Exact(n) => json!(n),
         kermlc_hir::MultBound::Unbounded => json!("*"),
-        kermlc_hir::MultBound::Ref(name_ref) => {
-            match name_ref.resolved_def() {
-                Some(def_id) => {
-                    let name =
-                        interner.resolve(model.defs[def_id].name);
-                    json!({
-                        "@type": "FeatureReferenceExpression",
-                        "reference": name,
-                    })
-                }
-                None => json!({
+        kermlc_hir::MultBound::Ref(name_ref) => match name_ref.resolved_def() {
+            Some(def_id) => {
+                let name = interner.resolve(model.defs[def_id].name);
+                json!({
                     "@type": "FeatureReferenceExpression",
-                    "reference": null,
-                }),
+                    "reference": name,
+                })
             }
-        }
+            None => json!({
+                "@type": "FeatureReferenceExpression",
+                "reference": null,
+            }),
+        },
     }
 }
 
@@ -329,20 +326,16 @@ mod tests {
 
     #[test]
     fn serialize_multiplicity_with_feature_ref() {
-        let json = compile_and_serialize(
-            "package P { type T { feature n : T; feature x : T [1..n]; } }",
-        );
-        let value: Vec<serde_json::Value> =
-            serde_json::from_str(&json).unwrap();
+        let json =
+            compile_and_serialize("package P { type T { feature n : T; feature x : T [1..n]; } }");
+        let value: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
 
-        let x_elem =
-            value.iter().find(|e| e["name"] == "x").unwrap();
+        let x_elem = value.iter().find(|e| e["name"] == "x").unwrap();
         let mult = &x_elem["ownedMultiplicity"];
         assert_eq!(mult["@type"], "MultiplicityRange");
         assert_eq!(mult["lowerBound"], 1);
         assert_eq!(
-            mult["upperBound"]["@type"],
-            "FeatureReferenceExpression",
+            mult["upperBound"]["@type"], "FeatureReferenceExpression",
             "upper bound should serialize as FeatureReferenceExpression"
         );
     }
