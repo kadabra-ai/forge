@@ -2,7 +2,7 @@
 
 This tasks are related to the design in [2026-02-15-kermlc-compiler-design.md](./2026-02-15-kermlc-compiler-design.md)
 
-Last updated: 2026-03-11 (A1b complete)
+Last updated: 2026-03-11 (A1c complete)
 
 ## Milestone 1 — Complete
 
@@ -31,7 +31,7 @@ All items shipped, pipeline works end-to-end.
 - [x] A1: Full conjugation — input/output direction flipping (type-level, explicit form)
 - [x] A1a: Named conjugation declarations — `conjugation c1 conjugate X conjugates Y;`
 - [x] A1b: Feature-level conjugation — `feature g ~ B::f;`
-- [ ] A1c: Inline conjugated type refs — `feature port : ~FuelPort;` (anonymous type synthesis)
+- [x] A1c: Inline conjugated type refs — `feature port : ~FuelPort;` (anonymous type synthesis)
 - [ ] A2: Expression evaluation — Star, Name, BinOp in multiplicity
 - [ ] A3: Feature chaining resolution — type-directed chain walking (a.b.c)
 - [ ] A4: Diamond inheritance — ordering-independent membership dedup
