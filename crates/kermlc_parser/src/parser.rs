@@ -593,7 +593,9 @@ impl<'a> Parser<'a> {
         if self.at(TokenKind::Star) {
             let star_span = self.bump().span;
             upper = Some(Expr::Star { span: star_span });
-        } else if self.at(TokenKind::IntLiteral) {
+        } else if self.at(TokenKind::IntLiteral)
+            || self.at(TokenKind::Ident)
+        {
             let first = self.parse_expr_atom()?;
 
             if self.at(TokenKind::DotDot) {
@@ -602,11 +604,13 @@ impl<'a> Parser<'a> {
                 if self.at(TokenKind::Star) {
                     let star_span = self.bump().span;
                     upper = Some(Expr::Star { span: star_span });
-                } else if self.at(TokenKind::IntLiteral) {
+                } else if self.at(TokenKind::IntLiteral)
+                    || self.at(TokenKind::Ident)
+                {
                     upper = self.parse_expr_atom();
                 }
             } else {
-                // Single value means both lower and upper are the same (exact multiplicity)
+                // Single value: both lower and upper are the same
                 upper = Some(first);
             }
         }

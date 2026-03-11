@@ -217,16 +217,17 @@ impl<'a> LowerCtx<'a> {
 }
 
 fn lower_multiplicity(mult: &kermlc_ast::Multiplicity) -> HirMultiplicity {
-    let lower = mult.lower.as_ref().map(eval_const_expr).unwrap_or(0);
+    let lower = mult
+        .lower
+        .as_ref()
+        .map(lower_expr_to_bound)
+        .unwrap_or(MultBound::Exact(0));
 
     let upper = mult
         .upper
         .as_ref()
-        .map(|e| match e {
-            kermlc_ast::Expr::Star { .. } => Bound::Unbounded,
-            _ => Bound::Exact(eval_const_expr(e)),
-        })
-        .unwrap_or(Bound::Exact(lower));
+        .map(lower_expr_to_bound)
+        .unwrap_or_else(|| lower.clone());
 
     HirMultiplicity {
         lower,
@@ -235,10 +236,15 @@ fn lower_multiplicity(mult: &kermlc_ast::Multiplicity) -> HirMultiplicity {
     }
 }
 
-fn eval_const_expr(expr: &kermlc_ast::Expr) -> u64 {
+fn lower_expr_to_bound(expr: &kermlc_ast::Expr) -> MultBound {
     match expr {
-        kermlc_ast::Expr::IntLiteral { value, .. } => *value,
-        _ => 0,
+        kermlc_ast::Expr::IntLiteral { value, .. } => MultBound::Exact(*value),
+        kermlc_ast::Expr::Star { .. } => MultBound::Unbounded,
+        kermlc_ast::Expr::Name { name } => MultBound::Ref(NameRef::unresolved(
+            name.segments.clone(),
+            name.span,
+        )),
+        kermlc_ast::Expr::BinOp { .. } => MultBound::Exact(0),
     }
 }
 
@@ -338,8 +344,8 @@ mod tests {
         assert!(feat.type_ref.is_some());
         assert!(feat.multiplicity.is_some());
         let mult = feat.multiplicity.as_ref().unwrap();
-        assert_eq!(mult.lower, 0);
-        assert_eq!(mult.upper, Bound::Exact(1));
+        assert!(matches!(mult.lower, MultBound::Exact(0)));
+        assert!(matches!(mult.upper, MultBound::Exact(1)));
     }
 
     #[test]
@@ -374,5 +380,56 @@ mod tests {
             ResolutionState::Unresolved,
             "conjugation target should be unresolved at lowering time"
         );
+    }
+
+    #[test]
+    fn lower_multiplicity_with_feature_ref() {
+        let (model, interner, sink) =
+            lower("package P { type T { feature n : T; feature x : T [1..n]; } }");
+        assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
+
+        let pkg = &model.defs[model.roots[0]];
+        let ty = &model.defs[pkg.children[0]];
+        let x = &model.defs[ty.children[1]];
+        let mult = x.multiplicity.as_ref().expect("x should have multiplicity");
+
+        assert!(
+            matches!(mult.lower, MultBound::Exact(1)),
+            "lower should be Exact(1), got {:?}", mult.lower
+        );
+        assert!(
+            matches!(mult.upper, MultBound::Ref(_)),
+            "upper should be Ref, got {:?}", mult.upper
+        );
+        if let MultBound::Ref(ref name_ref) = mult.upper {
+            assert_eq!(name_ref.resolution, ResolutionState::Unresolved);
+            assert_eq!(interner.resolve(name_ref.segments[0]), "n");
+        }
+    }
+
+    #[test]
+    fn lower_multiplicity_exact_unchanged() {
+        let (model, _interner, sink) =
+            lower("package P { type T { feature x : T [0..1]; } }");
+        assert!(!sink.has_errors());
+        let pkg = &model.defs[model.roots[0]];
+        let ty = &model.defs[pkg.children[0]];
+        let feat = &model.defs[ty.children[0]];
+        let mult = feat.multiplicity.as_ref().unwrap();
+        assert!(matches!(mult.lower, MultBound::Exact(0)));
+        assert!(matches!(mult.upper, MultBound::Exact(1)));
+    }
+
+    #[test]
+    fn lower_multiplicity_star_unchanged() {
+        let (model, _interner, sink) =
+            lower("package P { type T { feature x : T [0..*]; } }");
+        assert!(!sink.has_errors());
+        let pkg = &model.defs[model.roots[0]];
+        let ty = &model.defs[pkg.children[0]];
+        let feat = &model.defs[ty.children[0]];
+        let mult = feat.multiplicity.as_ref().unwrap();
+        assert!(matches!(mult.lower, MultBound::Exact(0)));
+        assert!(matches!(mult.upper, MultBound::Unbounded));
     }
 }

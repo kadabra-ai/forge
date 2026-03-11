@@ -56,19 +56,20 @@ impl NameRef {
     }
 }
 
+/// A multiplicity bound: concrete value, unbounded (*), or symbolic feature reference.
+#[derive(Clone, Debug)]
+pub enum MultBound {
+    Exact(u64),
+    Unbounded,
+    Ref(NameRef),
+}
+
 /// Multiplicity bounds in the HIR.
 #[derive(Clone, Debug)]
 pub struct HirMultiplicity {
-    pub lower: u64,
-    pub upper: Bound,
+    pub lower: MultBound,
+    pub upper: MultBound,
     pub span: Span,
-}
-
-/// Upper bound for multiplicity.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Bound {
-    Exact(u64),
-    Unbounded,
 }
 
 /// How a feature was inherited.
@@ -257,5 +258,15 @@ mod tests {
     #[test]
     fn conjugate_none_stays_none() {
         assert_eq!(conjugate_direction(None), None);
+    }
+
+    #[test]
+    fn mult_bound_ref_is_not_copy() {
+        let nr = NameRef::unresolved(
+            vec![],
+            Span::new(kermlc_diagnostics::FileId(0), 0, 0),
+        );
+        let bound = MultBound::Ref(nr);
+        let _cloned = bound.clone();
     }
 }
