@@ -314,6 +314,96 @@ fn valid_feature_conjugation() {
 }
 
 #[test]
+fn valid_inline_conjugation() {
+    let result = compile_file(
+        &fixtures_dir().join("valid/inline_conjugation.kerml"),
+    );
+    assert!(
+        !result.sink.has_errors(),
+        "Errors in inline_conjugation.kerml: {:?}",
+        result.sink.diagnostics()
+    );
+
+    let pkg = result.model.roots[0];
+    let children = &result.model.defs[pkg].children;
+
+    // Find Wrapper type
+    let wrapper_id = children
+        .iter()
+        .find(|&&c| {
+            result.interner.resolve(result.model.defs[c].name)
+                == "Wrapper"
+        })
+        .copied()
+        .expect("Wrapper not found");
+
+    // Find feature port inside Wrapper
+    let port_id = result.model.defs[wrapper_id]
+        .children
+        .iter()
+        .find(|&&c| {
+            result.interner.resolve(result.model.defs[c].name) == "port"
+        })
+        .copied()
+        .expect("port feature not found");
+
+    let port = &result.model.defs[port_id];
+    assert!(port.type_ref.is_some(), "port should have type_ref");
+    let type_ref = port.type_ref.as_ref().unwrap();
+    assert!(
+        type_ref.is_resolved(),
+        "port type_ref should be resolved"
+    );
+
+    // The anonymous type should have conjugation-flipped features
+    let anon_id = type_ref.resolved_def().unwrap();
+    let anon = &result.model.defs[anon_id];
+    assert_eq!(anon.kind, kermlc_hir::DefKind::Type);
+    assert!(
+        result.interner.resolve(anon.name).starts_with('~'),
+        "anonymous type name should start with ~"
+    );
+
+    // Anonymous type should have inherited features with flipped
+    // directions
+    assert_eq!(
+        anon.inherited_features.len(),
+        4,
+        "~Source should inherit 4 features"
+    );
+
+    for inh in &anon.inherited_features {
+        assert_eq!(inh.kind, InheritanceKind::Conjugation);
+        let feat_name = result
+            .interner
+            .resolve(result.model.defs[inh.def_id].name);
+        match feat_name {
+            "input" => assert_eq!(
+                inh.direction_override,
+                Some(FeatureDirection::Out),
+                "in should flip to out"
+            ),
+            "output" => assert_eq!(
+                inh.direction_override,
+                Some(FeatureDirection::In),
+                "out should flip to in"
+            ),
+            "control" => assert_eq!(
+                inh.direction_override,
+                Some(FeatureDirection::InOut),
+                "inout stays inout"
+            ),
+            "data" => assert_eq!(
+                inh.direction_override,
+                None,
+                "no direction stays None"
+            ),
+            other => panic!("unexpected feature: {other}"),
+        }
+    }
+}
+
+#[test]
 fn valid_feature_chain() {
     let result = compile_file(&fixtures_dir().join("valid/feature_chain.kerml"));
     assert!(

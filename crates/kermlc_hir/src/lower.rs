@@ -24,8 +24,9 @@ pub fn lower_ast(
 
     // Lower top-level members
     for member in &parse.source_file.members {
-        let def_id = ctx.lower_member(member);
-        ctx.model.roots.push(def_id);
+        for def_id in ctx.lower_member(member) {
+            ctx.model.roots.push(def_id);
+        }
     }
 
     model
@@ -55,19 +56,33 @@ impl<'a> LowerCtx<'a> {
 
         // Lower members
         for member in &pkg.members {
-            let child_id = self.lower_member(member);
-            self.model.add_child(def_id, child_id);
+            for child_id in self.lower_member(member) {
+                self.model.add_child(def_id, child_id);
+            }
         }
 
         def_id
     }
 
-    fn lower_member(&mut self, member: &kermlc_ast::Member) -> DefId {
+    /// Lower a member, returning the primary DefId plus any
+    /// synthesized siblings (e.g. anonymous conjugated types).
+    fn lower_member(
+        &mut self,
+        member: &kermlc_ast::Member,
+    ) -> Vec<DefId> {
         match member {
-            kermlc_ast::Member::Package(id) => self.lower_package(*id),
-            kermlc_ast::Member::Type(id) => self.lower_type(*id),
-            kermlc_ast::Member::Feature(id) => self.lower_feature(*id),
-            kermlc_ast::Member::Conjugation(id) => self.lower_conjugation_decl(*id),
+            kermlc_ast::Member::Package(id) => {
+                vec![self.lower_package(*id)]
+            }
+            kermlc_ast::Member::Type(id) => {
+                vec![self.lower_type(*id)]
+            }
+            kermlc_ast::Member::Feature(id) => {
+                self.lower_feature(*id)
+            }
+            kermlc_ast::Member::Conjugation(id) => {
+                vec![self.lower_conjugation_decl(*id)]
+            }
         }
     }
 
@@ -90,16 +105,23 @@ impl<'a> LowerCtx<'a> {
 
         // Lower nested members
         for member in &ty.members {
-            let child_id = self.lower_member(member);
-            self.model.add_child(def_id, child_id);
+            for child_id in self.lower_member(member) {
+                self.model.add_child(def_id, child_id);
+            }
         }
 
         def_id
     }
 
-    fn lower_feature(&mut self, feat_id: kermlc_ast::FeatureDeclId) -> DefId {
+    /// Lower a feature declaration, returning the feature DefId
+    /// plus any synthesized anonymous types as siblings.
+    fn lower_feature(
+        &mut self,
+        feat_id: kermlc_ast::FeatureDeclId,
+    ) -> Vec<DefId> {
         let feat = &self.parse.features[feat_id];
         let mut def = Def::new(feat.name, DefKind::Feature, feat.span);
+        let mut extra_siblings = Vec::new();
 
         // Lower direction
         def.direction = feat.direction;
@@ -113,12 +135,14 @@ impl<'a> LowerCtx<'a> {
                 ));
             }
             Some(kermlc_ast::TypeExpr::Conjugated(qn, span)) => {
-                let anon_id = self.synthesize_conjugated_type(qn, *span);
+                let anon_id =
+                    self.synthesize_conjugated_type(qn, *span);
                 def.type_ref = Some(NameRef {
                     segments: vec![],
                     span: *span,
                     resolution: ResolutionState::Resolved(anon_id),
                 });
+                extra_siblings.push(anon_id);
             }
             Some(kermlc_ast::TypeExpr::Chain(_)) => {
                 // Future: chain-as-type lowering
@@ -128,14 +152,19 @@ impl<'a> LowerCtx<'a> {
 
         // Lower conjugation
         if let Some(conj) = &feat.conjugation {
-            def.conjugation = Some(NameRef::unresolved(conj.segments.clone(), conj.span));
+            def.conjugation = Some(NameRef::unresolved(
+                conj.segments.clone(),
+                conj.span,
+            ));
         }
 
         // Lower feature chain
         if let Some(chain) = &feat.chain {
             for seg in &chain.segments {
-                def.chain_segments
-                    .push(NameRef::unresolved(seg.segments.clone(), seg.span));
+                def.chain_segments.push(NameRef::unresolved(
+                    seg.segments.clone(),
+                    seg.span,
+                ));
             }
         }
 
@@ -144,7 +173,10 @@ impl<'a> LowerCtx<'a> {
             def.multiplicity = Some(lower_multiplicity(mult));
         }
 
-        self.model.alloc_def(def)
+        let feat_id = self.model.alloc_def(def);
+        let mut result = vec![feat_id];
+        result.append(&mut extra_siblings);
+        result
     }
 
     fn lower_conjugation_decl(&mut self, conj_id: kermlc_ast::ConjugationDeclId) -> DefId {
