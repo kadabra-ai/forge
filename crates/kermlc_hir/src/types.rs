@@ -1,6 +1,8 @@
 use kermlc_diagnostics::Span;
 use kermlc_intern::{Arena, Idx, SymbolId};
 
+pub use kermlc_ast::FeatureDirection;
+
 /// A definition ID — typed index into the def arena.
 pub type DefId = Idx<Def>;
 
@@ -68,6 +70,31 @@ pub enum Bound {
     Unbounded,
 }
 
+/// How a feature was inherited.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InheritanceKind {
+    Specialization,
+    Conjugation,
+}
+
+/// A feature inherited from a supertype or conjugate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InheritedFeature {
+    pub def_id: DefId,
+    pub kind: InheritanceKind,
+    pub direction_override: Option<FeatureDirection>,
+}
+
+/// Flip a feature direction for conjugation: in↔out, inout stays, None stays.
+pub fn conjugate_direction(dir: Option<FeatureDirection>) -> Option<FeatureDirection> {
+    match dir {
+        Some(FeatureDirection::In) => Some(FeatureDirection::Out),
+        Some(FeatureDirection::Out) => Some(FeatureDirection::In),
+        Some(FeatureDirection::InOut) => Some(FeatureDirection::InOut),
+        None => None,
+    }
+}
+
 /// A definition in the semantic model.
 #[derive(Clone, Debug)]
 pub struct Def {
@@ -86,10 +113,12 @@ pub struct Def {
     pub chain_segments: Vec<NameRef>,
     /// For features: multiplicity
     pub multiplicity: Option<HirMultiplicity>,
+    /// For features: direction modifier (in, out, inout)
+    pub direction: Option<FeatureDirection>,
     /// Imports visible from this def's scope
     pub imports: Vec<Import>,
     /// Inherited features (populated by type checking)
-    pub inherited_features: Vec<DefId>,
+    pub inherited_features: Vec<InheritedFeature>,
     /// Whether this def has been fully type-checked
     pub type_checked: bool,
 }
@@ -107,6 +136,7 @@ impl Def {
             type_ref: None,
             chain_segments: Vec::new(),
             multiplicity: None,
+            direction: None,
             imports: Vec::new(),
             inherited_features: Vec::new(),
             type_checked: false,
@@ -189,5 +219,39 @@ impl SemanticModel {
 impl Default for SemanticModel {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn conjugate_in_becomes_out() {
+        assert_eq!(
+            conjugate_direction(Some(FeatureDirection::In)),
+            Some(FeatureDirection::Out)
+        );
+    }
+
+    #[test]
+    fn conjugate_out_becomes_in() {
+        assert_eq!(
+            conjugate_direction(Some(FeatureDirection::Out)),
+            Some(FeatureDirection::In)
+        );
+    }
+
+    #[test]
+    fn conjugate_inout_stays_inout() {
+        assert_eq!(
+            conjugate_direction(Some(FeatureDirection::InOut)),
+            Some(FeatureDirection::InOut)
+        );
+    }
+
+    #[test]
+    fn conjugate_none_stays_none() {
+        assert_eq!(conjugate_direction(None), None);
     }
 }

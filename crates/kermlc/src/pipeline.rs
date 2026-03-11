@@ -126,9 +126,7 @@ mod tests {
 
     #[test]
     fn fixpoint_unresolved_emits_error() {
-        let (_model, _interner, sink) = compile(
-            "package P { type A :> DoesNotExist {} }",
-        );
+        let (_model, _interner, sink) = compile("package P { type A :> DoesNotExist {} }");
         assert!(sink.has_errors());
     }
 }

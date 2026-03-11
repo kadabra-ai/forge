@@ -101,10 +101,7 @@ pub fn load_stdlib(model: &mut SemanticModel, interner: &mut StringInterner) -> 
 ///
 /// Must be called after `load_stdlib` and `lower_ast`.
 /// Skips stdlib types, packages, and features.
-pub fn add_implicit_specializations(
-    model: &mut SemanticModel,
-    stdlib: &StdlibDefs,
-) {
+pub fn add_implicit_specializations(model: &mut SemanticModel, stdlib: &StdlibDefs) {
     let stdlib_ids: Vec<DefId> = vec![
         stdlib.anything,
         stdlib.object,
@@ -114,11 +111,7 @@ pub fn add_implicit_specializations(
         stdlib.link,
     ];
 
-    let all_defs: Vec<DefId> = model
-        .defs
-        .iter()
-        .map(|(id, _)| id)
-        .collect();
+    let all_defs: Vec<DefId> = model.defs.iter().map(|(id, _)| id).collect();
 
     for def_id in all_defs {
         if stdlib_ids.contains(&def_id) {
@@ -163,7 +156,10 @@ mod tests {
 
         assert_eq!(model.roots.len(), 6);
         assert_eq!(model.defs[stdlib.anything].kind, DefKind::Type);
-        assert_eq!(interner.resolve(model.defs[stdlib.anything].name), "Anything");
+        assert_eq!(
+            interner.resolve(model.defs[stdlib.anything].name),
+            "Anything"
+        );
 
         // Object specializes Anything
         let object = &model.defs[stdlib.object];
@@ -213,11 +209,7 @@ mod tests {
         ));
         model.roots.push(base);
 
-        let mut child_def = Def::new(
-            interner.intern("Child"),
-            DefKind::Type,
-            Span::dummy(),
-        );
+        let mut child_def = Def::new(interner.intern("Child"), DefKind::Type, Span::dummy());
         child_def.specializations.push(NameRef {
             segments: vec![interner.intern("Base")],
             span: Span::dummy(),

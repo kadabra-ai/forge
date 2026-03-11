@@ -10,6 +10,9 @@ pub enum TokenKind {
     Specializes,
     Conjugates,
     Chains,
+    In,
+    Out,
+    InOut,
 
     // Literals
     IntLiteral,
@@ -19,25 +22,25 @@ pub enum TokenKind {
     Ident,
 
     // Punctuation
-    LBrace,    // {
-    RBrace,    // }
-    LBracket,  // [
-    RBracket,  // ]
-    LParen,    // (
-    RParen,    // )
-    Semicolon, // ;
-    Colon,     // :
+    LBrace,     // {
+    RBrace,     // }
+    LBracket,   // [
+    RBracket,   // ]
+    LParen,     // (
+    RParen,     // )
+    Semicolon,  // ;
+    Colon,      // :
     ColonColon, // ::
-    ColonGt,   // :>
-    Dot,       // .
-    DotDot,    // ..
-    Comma,     // ,
-    Tilde,     // ~
-    Star,      // *
-    Plus,      // +
-    Minus,     // -
-    Slash,     // /
-    Eq,        // =
+    ColonGt,    // :>
+    Dot,        // .
+    DotDot,     // ..
+    Comma,      // ,
+    Tilde,      // ~
+    Star,       // *
+    Plus,       // +
+    Minus,      // -
+    Slash,      // /
+    Eq,         // =
 
     // Special
     Comment,

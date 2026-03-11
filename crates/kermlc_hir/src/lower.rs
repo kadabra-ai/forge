@@ -101,6 +101,9 @@ impl<'a> LowerCtx<'a> {
         let feat = &self.parse.features[feat_id];
         let mut def = Def::new(feat.name, DefKind::Feature, feat.span);
 
+        // Lower direction
+        def.direction = feat.direction;
+
         // Lower type reference
         if let Some(type_ref) = &feat.type_ref {
             def.type_ref = Some(NameRef::unresolved(
@@ -127,11 +130,7 @@ impl<'a> LowerCtx<'a> {
 }
 
 fn lower_multiplicity(mult: &kermlc_ast::Multiplicity) -> HirMultiplicity {
-    let lower = mult
-        .lower
-        .as_ref()
-        .map(|e| eval_const_expr(e))
-        .unwrap_or(0);
+    let lower = mult.lower.as_ref().map(eval_const_expr).unwrap_or(0);
 
     let upper = mult
         .upper
@@ -205,9 +204,21 @@ mod tests {
     }
 
     #[test]
+    fn lower_feature_direction() {
+        let (model, interner, sink) = lower("package P { type T { in feature f : Integer; } }");
+        assert!(!sink.has_errors());
+
+        let pkg = &model.defs[model.roots[0]];
+        let ty = &model.defs[pkg.children[0]];
+        let feat = &model.defs[ty.children[0]];
+        assert_eq!(feat.kind, DefKind::Feature);
+        assert_eq!(interner.resolve(feat.name), "f");
+        assert_eq!(feat.direction, Some(FeatureDirection::In));
+    }
+
+    #[test]
     fn lower_creates_feature_with_type_ref() {
-        let (model, interner, sink) =
-            lower("package P { type T { feature x : Integer [0..1]; } }");
+        let (model, interner, sink) = lower("package P { type T { feature x : Integer [0..1]; } }");
         assert!(!sink.has_errors());
 
         let pkg = &model.defs[model.roots[0]];

@@ -45,11 +45,8 @@ fn validate_type(
             if target.kind != DefKind::Type {
                 let name = interner.resolve(target.name);
                 sink.emit(
-                    Diagnostic::error(format!(
-                        "`{}` is a {:?}, not a type",
-                        name, target.kind
-                    ))
-                    .with_label(Label::primary(spec.span, "expected a type here")),
+                    Diagnostic::error(format!("`{}` is a {:?}, not a type", name, target.kind))
+                        .with_label(Label::primary(spec.span, "expected a type here")),
                 );
             }
         }
@@ -67,6 +64,30 @@ fn validate_type(
                         name, target.kind
                     ))
                     .with_label(Label::primary(conj.span, "expected a type here")),
+                );
+            }
+        }
+    }
+
+    // Warn when conjugation target has no features
+    if let Some(conj) = &def.conjugation {
+        if let Some(target_id) = conj.resolved_def() {
+            let target = &model.defs[target_id];
+            let has_features = target
+                .children
+                .iter()
+                .any(|c| model.defs[*c].kind == DefKind::Feature);
+            if !has_features {
+                let name = interner.resolve(target.name);
+                sink.emit(
+                    Diagnostic::warning(format!(
+                        "conjugation target `{name}` has no \
+                         features; conjugation has no effect"
+                    ))
+                    .with_label(Label::primary(
+                        conj.span,
+                        "this type has no features to flip",
+                    )),
                 );
             }
         }
@@ -143,11 +164,17 @@ fn validate_feature(
         let parent = &model.defs[parent_id];
         if parent.kind == DefKind::Type {
             // Check if this feature redefines an inherited one
-            for &inherited_id in &parent.inherited_features {
-                let inherited = &model.defs[inherited_id];
+            for inherited_feat in &parent.inherited_features {
+                let inherited = &model.defs[inherited_feat.def_id];
                 if inherited.name == def.name {
                     // This feature redefines an inherited feature
-                    validate_redefinition_multiplicity(model, interner, def_id, inherited_id, sink);
+                    validate_redefinition_multiplicity(
+                        model,
+                        interner,
+                        def_id,
+                        inherited_feat.def_id,
+                        sink,
+                    );
                 }
             }
         }
@@ -246,33 +273,42 @@ mod tests {
 
     #[test]
     fn valid_model_passes() {
-        let (_model, sink) = compile_and_validate(
-            "package P { type A {} type B :> A { feature x : A; } }",
-        );
+        let (_model, sink) =
+            compile_and_validate("package P { type A {} type B :> A { feature x : A; } }");
         assert!(!sink.has_errors());
     }
 
     #[test]
     fn invalid_multiplicity_bounds() {
-        let (_model, sink) = compile_and_validate(
-            "package P { type T { feature x : T [5..2]; } }",
-        );
+        let (_model, sink) = compile_and_validate("package P { type T { feature x : T [5..2]; } }");
         assert!(sink.has_errors());
     }
 
     #[test]
     fn specialization_target_must_be_type() {
-        let (_model, sink) = compile_and_validate(
-            "package P { type A :> P {} }",
-        );
+        let (_model, sink) = compile_and_validate("package P { type A :> P {} }");
         assert!(sink.has_errors());
     }
 
     #[test]
     fn duplicate_features_detected() {
-        let (_model, sink) = compile_and_validate(
-            "package P { type A { feature x : A; feature x : A; } }",
-        );
+        let (_model, sink) =
+            compile_and_validate("package P { type A { feature x : A; feature x : A; } }");
         assert!(sink.has_errors());
+    }
+
+    #[test]
+    fn conjugation_target_no_features_warns() {
+        let (_model, sink) = compile_and_validate("package P { type Empty {} type B ~ Empty {} }");
+        assert!(!sink.has_errors());
+        let warnings: Vec<_> = sink
+            .diagnostics()
+            .iter()
+            .filter(|d| d.message.contains("no features"))
+            .collect();
+        assert!(
+            !warnings.is_empty(),
+            "should warn about conjugation target with no features"
+        );
     }
 }

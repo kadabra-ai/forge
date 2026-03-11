@@ -74,7 +74,7 @@ impl<'a> Parser<'a> {
                         top_members.push(Member::Type(id));
                     }
                 }
-                TokenKind::Feature => {
+                TokenKind::Feature | TokenKind::In | TokenKind::Out | TokenKind::InOut => {
                     if let Some(id) = parser.parse_feature_decl() {
                         top_members.push(Member::Feature(id));
                     }
@@ -161,9 +161,8 @@ impl<'a> Parser<'a> {
 
     fn error_at_current(&mut self, msg: &str) {
         let span = self.current_span();
-        self.sink.emit(
-            Diagnostic::error(msg).with_label(Label::primary(span, msg)),
-        );
+        self.sink
+            .emit(Diagnostic::error(msg).with_label(Label::primary(span, msg)));
     }
 
     /// Skip tokens until we reach a synchronization point.
@@ -174,7 +173,10 @@ impl<'a> Parser<'a> {
                 TokenKind::Package
                 | TokenKind::Type
                 | TokenKind::Feature
-                | TokenKind::Import => break,
+                | TokenKind::Import
+                | TokenKind::In
+                | TokenKind::Out
+                | TokenKind::InOut => break,
                 TokenKind::RBrace => {
                     self.bump();
                     break;
@@ -230,15 +232,13 @@ impl<'a> Parser<'a> {
                         members.push(Member::Type(id));
                     }
                 }
-                TokenKind::Feature => {
+                TokenKind::Feature | TokenKind::In | TokenKind::Out | TokenKind::InOut => {
                     if let Some(id) = self.parse_feature_decl() {
                         members.push(Member::Feature(id));
                     }
                 }
                 _ => {
-                    self.error_at_current(
-                        "expected import, package, type, or feature declaration",
-                    );
+                    self.error_at_current("expected import, package, type, or feature declaration");
                     self.synchronize();
                 }
             }
@@ -343,7 +343,7 @@ impl<'a> Parser<'a> {
                             members.push(Member::Type(id));
                         }
                     }
-                    TokenKind::Feature => {
+                    TokenKind::Feature | TokenKind::In | TokenKind::Out | TokenKind::InOut => {
                         if let Some(id) = self.parse_feature_decl() {
                             members.push(Member::Feature(id));
                         }
@@ -381,6 +381,24 @@ impl<'a> Parser<'a> {
 
     fn parse_feature_decl(&mut self) -> Option<FeatureDeclId> {
         let start = self.current_span();
+
+        // Parse optional direction modifier
+        let direction = match self.peek() {
+            TokenKind::In => {
+                self.bump();
+                Some(FeatureDirection::In)
+            }
+            TokenKind::Out => {
+                self.bump();
+                Some(FeatureDirection::Out)
+            }
+            TokenKind::InOut => {
+                self.bump();
+                Some(FeatureDirection::InOut)
+            }
+            _ => None,
+        };
+
         self.expect(TokenKind::Feature)?;
 
         let name_tok = self.expect(TokenKind::Ident)?;
@@ -418,6 +436,7 @@ impl<'a> Parser<'a> {
         Some(self.features.alloc(FeatureDecl {
             name,
             span,
+            direction,
             type_ref,
             chain,
             multiplicity,
@@ -432,9 +451,7 @@ impl<'a> Parser<'a> {
         while self.at(TokenKind::ColonColon) {
             // Check if next is an ident (not *)
             let next_pos = self.pos + 1;
-            if next_pos < self.tokens.len()
-                && self.tokens[next_pos].kind == TokenKind::Ident
-            {
+            if next_pos < self.tokens.len() && self.tokens[next_pos].kind == TokenKind::Ident {
                 self.bump(); // ::
                 let seg_tok = self.bump();
                 segments.push(self.intern_span(seg_tok.span));
@@ -589,6 +606,70 @@ mod tests {
         let pkg = &result.packages[result.source_file.packages[0]];
         assert_eq!(pkg.imports.len(), 1);
         assert!(pkg.imports[0].is_wildcard);
+    }
+
+    #[test]
+    fn parse_in_feature() {
+        let (result, _interner, sink) = parse("package P { type T { in feature f : Tp; } }");
+        assert!(!sink.has_errors());
+        let pkg = &result.packages[result.source_file.packages[0]];
+        let Member::Type(ty_id) = &pkg.members[0] else {
+            panic!("expected type member");
+        };
+        let ty = &result.types[*ty_id];
+        let Member::Feature(feat_id) = &ty.members[0] else {
+            panic!("expected feature member");
+        };
+        let feat = &result.features[*feat_id];
+        assert_eq!(feat.direction, Some(FeatureDirection::In));
+    }
+
+    #[test]
+    fn parse_out_feature() {
+        let (result, _interner, sink) = parse("package P { type T { out feature g : Tp; } }");
+        assert!(!sink.has_errors());
+        let pkg = &result.packages[result.source_file.packages[0]];
+        let Member::Type(ty_id) = &pkg.members[0] else {
+            panic!("expected type member");
+        };
+        let ty = &result.types[*ty_id];
+        let Member::Feature(feat_id) = &ty.members[0] else {
+            panic!("expected feature member");
+        };
+        let feat = &result.features[*feat_id];
+        assert_eq!(feat.direction, Some(FeatureDirection::Out));
+    }
+
+    #[test]
+    fn parse_inout_feature() {
+        let (result, _interner, sink) = parse("package P { type T { inout feature h : Tp; } }");
+        assert!(!sink.has_errors());
+        let pkg = &result.packages[result.source_file.packages[0]];
+        let Member::Type(ty_id) = &pkg.members[0] else {
+            panic!("expected type member");
+        };
+        let ty = &result.types[*ty_id];
+        let Member::Feature(feat_id) = &ty.members[0] else {
+            panic!("expected feature member");
+        };
+        let feat = &result.features[*feat_id];
+        assert_eq!(feat.direction, Some(FeatureDirection::InOut));
+    }
+
+    #[test]
+    fn parse_undirected_feature() {
+        let (result, _interner, sink) = parse("package P { type T { feature x : Tp; } }");
+        assert!(!sink.has_errors());
+        let pkg = &result.packages[result.source_file.packages[0]];
+        let Member::Type(ty_id) = &pkg.members[0] else {
+            panic!("expected type member");
+        };
+        let ty = &result.types[*ty_id];
+        let Member::Feature(feat_id) = &ty.members[0] else {
+            panic!("expected feature member");
+        };
+        let feat = &result.features[*feat_id];
+        assert_eq!(feat.direction, None);
     }
 
     #[test]

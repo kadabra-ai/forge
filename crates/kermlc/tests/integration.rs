@@ -1,5 +1,8 @@
 use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-use kermlc_hir::{add_implicit_specializations, load_stdlib, lower_ast, SemanticModel};
+use kermlc_hir::{
+    add_implicit_specializations, load_stdlib, lower_ast, FeatureDirection, InheritanceKind,
+    SemanticModel,
+};
 use kermlc_intern::StringInterner;
 use kermlc_resolve::{detect_specialization_cycles, emit_unresolved_errors, resolve_pass};
 use kermlc_serial_json::serialize_to_json;
@@ -39,9 +42,10 @@ fn compile_source(source: &str) -> CompileResult {
 
 /// Get the fixtures directory based on CARGO_MANIFEST_DIR.
 fn fixtures_dir() -> std::path::PathBuf {
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-        .unwrap_or_else(|_| ".".to_string());
-    std::path::PathBuf::from(manifest_dir).join("tests").join("fixtures")
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+    std::path::PathBuf::from(manifest_dir)
+        .join("tests")
+        .join("fixtures")
 }
 
 /// Compile a KerML file from disk through the full pipeline.
@@ -87,6 +91,110 @@ fn valid_conjugation() {
         "Errors in conjugation.kerml: {:?}",
         result.sink.diagnostics()
     );
+
+    // Find Sink type and verify inherited features
+    let pkg = result.model.roots[0];
+    let sink_id = result.model.defs[pkg]
+        .children
+        .iter()
+        .find(|&&c| result.interner.resolve(result.model.defs[c].name) == "Sink")
+        .copied()
+        .expect("Sink type not found");
+
+    let sink_def = &result.model.defs[sink_id];
+    assert_eq!(
+        sink_def.inherited_features.len(),
+        4,
+        "Sink should inherit 4 features from Source"
+    );
+
+    for inh in &sink_def.inherited_features {
+        assert_eq!(inh.kind, InheritanceKind::Conjugation);
+        let feat_name = result.interner.resolve(result.model.defs[inh.def_id].name);
+        match feat_name {
+            "input" => assert_eq!(
+                inh.direction_override,
+                Some(FeatureDirection::Out),
+                "in should flip to out"
+            ),
+            "output" => assert_eq!(
+                inh.direction_override,
+                Some(FeatureDirection::In),
+                "out should flip to in"
+            ),
+            "control" => assert_eq!(
+                inh.direction_override,
+                Some(FeatureDirection::InOut),
+                "inout stays inout"
+            ),
+            "data" => assert_eq!(inh.direction_override, None, "no direction stays None"),
+            other => panic!("unexpected feature: {other}"),
+        }
+    }
+}
+
+#[test]
+fn valid_conjugation_chained() {
+    let result = compile_file(&fixtures_dir().join("valid/conjugation_chained.kerml"));
+    assert!(
+        !result.sink.has_errors(),
+        "Errors in conjugation_chained.kerml: {:?}",
+        result.sink.diagnostics()
+    );
+
+    let pkg = result.model.roots[0];
+    let children = &result.model.defs[pkg].children;
+
+    // Find B and C by name
+    let find_type = |name: &str| {
+        children
+            .iter()
+            .find(|&&c| result.interner.resolve(result.model.defs[c].name) == name)
+            .copied()
+            .unwrap_or_else(|| panic!("{name} not found"))
+    };
+    let b_id = find_type("B");
+    let c_id = find_type("C");
+
+    // B conjugates A: in->out, out->in
+    let b_def = &result.model.defs[b_id];
+    assert_eq!(b_def.inherited_features.len(), 2);
+    for inh in &b_def.inherited_features {
+        let name = result.interner.resolve(result.model.defs[inh.def_id].name);
+        match name {
+            "f" => assert_eq!(
+                inh.direction_override,
+                Some(FeatureDirection::Out),
+                "B.f: in should flip to out"
+            ),
+            "g" => assert_eq!(
+                inh.direction_override,
+                Some(FeatureDirection::In),
+                "B.g: out should flip to in"
+            ),
+            other => panic!("unexpected feature: {other}"),
+        }
+    }
+
+    // C conjugates B: double flip back to original
+    let c_def = &result.model.defs[c_id];
+    assert_eq!(c_def.inherited_features.len(), 2);
+    for inh in &c_def.inherited_features {
+        let name = result.interner.resolve(result.model.defs[inh.def_id].name);
+        match name {
+            "f" => assert_eq!(
+                inh.direction_override,
+                Some(FeatureDirection::In),
+                "C.f: double flip back to in"
+            ),
+            "g" => assert_eq!(
+                inh.direction_override,
+                Some(FeatureDirection::Out),
+                "C.g: double flip back to out"
+            ),
+            other => panic!("unexpected feature: {other}"),
+        }
+    }
 }
 
 #[test]
@@ -105,6 +213,16 @@ fn valid_imports() {
     assert!(
         !result.sink.has_errors(),
         "Errors in imports.kerml: {:?}",
+        result.sink.diagnostics()
+    );
+}
+
+#[test]
+fn valid_direction() {
+    let result = compile_file(&fixtures_dir().join("valid/direction.kerml"));
+    assert!(
+        !result.sink.has_errors(),
+        "Errors in direction.kerml: {:?}",
         result.sink.diagnostics()
     );
 }
@@ -182,9 +300,7 @@ fn specialization_chain_inherits_features() {
 
 #[test]
 fn validation_catches_bad_multiplicity() {
-    let result = compile_source(
-        "package P { type T { feature x : T [5..2]; } }",
-    );
+    let result = compile_source("package P { type T { feature x : T [5..2]; } }");
     assert!(
         result.sink.has_errors(),
         "Should catch lower > upper multiplicity"

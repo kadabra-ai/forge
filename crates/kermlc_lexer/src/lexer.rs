@@ -143,6 +143,9 @@ impl<'a> Lexer<'a> {
                     "specializes" => TokenKind::Specializes,
                     "conjugates" => TokenKind::Conjugates,
                     "chains" => TokenKind::Chains,
+                    "in" => TokenKind::In,
+                    "out" => TokenKind::Out,
+                    "inout" => TokenKind::InOut,
                     _ => TokenKind::Ident,
                 }
             }
@@ -281,6 +284,19 @@ mod tests {
             }
         }
         assert!(kinds.contains(&TokenKind::Comment));
+    }
+
+    #[test]
+    fn lex_direction_keywords() {
+        let tokens = lex("in out inout");
+        assert_eq!(
+            tokens,
+            vec![
+                (TokenKind::In, "in"),
+                (TokenKind::Out, "out"),
+                (TokenKind::InOut, "inout"),
+            ]
+        );
     }
 
     #[test]

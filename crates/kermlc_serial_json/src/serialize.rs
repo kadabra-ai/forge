@@ -1,4 +1,4 @@
-use kermlc_hir::{DefKind, SemanticModel};
+use kermlc_hir::{DefKind, FeatureDirection, InheritanceKind, SemanticModel};
 use kermlc_intern::StringInterner;
 use serde_json::{json, Value};
 
@@ -87,6 +87,40 @@ fn build_elements(model: &SemanticModel, interner: &StringInterner) -> Vec<Value
             }
         }
 
+        // Add inherited features with direction info
+        if !def.inherited_features.is_empty() {
+            let inherited_refs: Vec<Value> = def
+                .inherited_features
+                .iter()
+                .map(|inh| {
+                    let kind_str = match inh.kind {
+                        InheritanceKind::Specialization => "specialization",
+                        InheritanceKind::Conjugation => "conjugation",
+                    };
+                    let mut obj = json!({
+                        "@id": format!(
+                            "feature-{}",
+                            inh.def_id.raw()
+                        ),
+                        "inheritanceKind": kind_str,
+                    });
+                    let effective_dir = inh.direction_override.or(model.defs[inh.def_id].direction);
+                    if let Some(dir) = effective_dir {
+                        let dir_str = match dir {
+                            FeatureDirection::In => "in",
+                            FeatureDirection::Out => "out",
+                            FeatureDirection::InOut => "inout",
+                        };
+                        obj.as_object_mut()
+                            .unwrap()
+                            .insert("direction".to_string(), json!(dir_str));
+                    }
+                    obj
+                })
+                .collect();
+            element["inheritedFeature"] = json!(inherited_refs);
+        }
+
         // Add typing for features
         if def.kind == DefKind::Feature {
             if let Some(type_ref) = &def.type_ref {
@@ -110,6 +144,15 @@ fn build_elements(model: &SemanticModel, interner: &StringInterner) -> Vec<Value
                     "@type": "MultiplicityRange",
                     "lowerBound": mult.lower,
                     "upperBound": upper_str,
+                });
+            }
+
+            // Add direction
+            if let Some(dir) = &def.direction {
+                element["direction"] = json!(match dir {
+                    FeatureDirection::In => "in",
+                    FeatureDirection::Out => "out",
+                    FeatureDirection::InOut => "inout",
                 });
             }
         }
@@ -174,9 +217,7 @@ mod tests {
 
     #[test]
     fn serialize_type_with_specialization() {
-        let json = compile_and_serialize(
-            "package P { type A {} type B :> A {} }",
-        );
+        let json = compile_and_serialize("package P { type A {} type B :> A {} }");
         let value: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
 
         // Find B (should have ownedSpecialization)
@@ -187,9 +228,8 @@ mod tests {
 
     #[test]
     fn serialize_feature_with_typing() {
-        let json = compile_and_serialize(
-            "package P { type A {} type B { feature x : A [0..1]; } }",
-        );
+        let json =
+            compile_and_serialize("package P { type A {} type B { feature x : A [0..1]; } }");
         let value: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
 
         let x_elem = value.iter().find(|e| e["name"] == "x").unwrap();
@@ -199,10 +239,46 @@ mod tests {
     }
 
     #[test]
-    fn output_is_valid_json() {
+    fn serialize_feature_direction() {
+        let json =
+            compile_and_serialize("package P { type T { in feature f : T; out feature g : T; } }");
+        let value: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
+
+        let f_elem = value.iter().find(|e| e["name"] == "f").unwrap();
+        assert_eq!(f_elem["direction"], "in");
+
+        let g_elem = value.iter().find(|e| e["name"] == "g").unwrap();
+        assert_eq!(g_elem["direction"], "out");
+    }
+
+    #[test]
+    fn serialize_inherited_features_with_conjugation() {
         let json = compile_and_serialize(
-            "package P { type A { feature f : A; } }",
+            r#"package P {
+                type A {
+                    in feature f : A;
+                    out feature g : A;
+                }
+                type B ~ A {}
+            }"#,
         );
+        let value: Vec<serde_json::Value> = serde_json::from_str(&json).unwrap();
+
+        let b_elem = value.iter().find(|e| e["name"] == "B").unwrap();
+        let inherited = b_elem["inheritedFeature"].as_array();
+        assert!(inherited.is_some(), "B should have inheritedFeature");
+        let inherited = inherited.unwrap();
+        assert_eq!(inherited.len(), 2);
+
+        for inh in inherited {
+            assert_eq!(inh["inheritanceKind"], "conjugation");
+            assert!(inh.get("direction").is_some());
+        }
+    }
+
+    #[test]
+    fn output_is_valid_json() {
+        let json = compile_and_serialize("package P { type A { feature f : A; } }");
         let parsed: Result<Vec<serde_json::Value>, _> = serde_json::from_str(&json);
         assert!(parsed.is_ok());
     }

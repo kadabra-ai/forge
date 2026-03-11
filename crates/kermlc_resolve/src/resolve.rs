@@ -98,7 +98,11 @@ pub fn detect_specialization_cycles(
         .collect();
 
     #[derive(Clone, Copy, PartialEq)]
-    enum Color { White, Gray, Black }
+    enum Color {
+        White,
+        Gray,
+        Black,
+    }
 
     let capacity = model.defs.len();
     let mut color = vec![Color::White; capacity];
@@ -132,10 +136,7 @@ pub fn detect_specialization_cycles(
                          of a specialization cycle",
                         name
                     ))
-                    .with_label(Label::primary(
-                        model.defs[node].span,
-                        "cycle detected here",
-                    )),
+                    .with_label(Label::primary(model.defs[node].span, "cycle detected here")),
                 );
                 found_cycle = true;
                 continue;
@@ -147,8 +148,7 @@ pub fn detect_specialization_cycles(
 
             // Push resolved specialization targets
             for spec in &model.defs[node].specializations {
-                if let ResolutionState::Resolved(target) = spec.resolution
-                {
+                if let ResolutionState::Resolved(target) = spec.resolution {
                     stack.push((target, false));
                 }
             }
@@ -196,8 +196,7 @@ fn resolve_specializations_for(model: &mut SemanticModel, def_id: DefId) -> bool
 
         let segments = model.defs[def_id].specializations[i].segments.clone();
         if let Some(resolved) = try_resolve_name(model, def_id, &segments) {
-            model.defs[def_id].specializations[i].resolution =
-                ResolutionState::Resolved(resolved);
+            model.defs[def_id].specializations[i].resolution = ResolutionState::Resolved(resolved);
             changed = true;
         }
     }
@@ -246,8 +245,7 @@ fn resolve_chains_for(model: &mut SemanticModel, def_id: DefId) -> bool {
 
         let segments = model.defs[def_id].chain_segments[i].segments.clone();
         if let Some(resolved) = try_resolve_name(model, def_id, &segments) {
-            model.defs[def_id].chain_segments[i].resolution =
-                ResolutionState::Resolved(resolved);
+            model.defs[def_id].chain_segments[i].resolution = ResolutionState::Resolved(resolved);
             changed = true;
         }
     }
@@ -334,9 +332,8 @@ mod tests {
 
     #[test]
     fn resolve_qualified_name() {
-        let (mut model, interner, mut sink) = parse_and_lower(
-            "package A { type X {} } package B { type Y :> A::X {} }",
-        );
+        let (mut model, interner, mut sink) =
+            parse_and_lower("package A { type X {} } package B { type Y :> A::X {} }");
         assert!(!sink.has_errors());
 
         let changed = resolve_pass(&mut model, &interner, &mut sink);
@@ -350,9 +347,8 @@ mod tests {
 
     #[test]
     fn resolve_import() {
-        let (mut model, interner, mut sink) = parse_and_lower(
-            "package A { type X {} } package B { import A::*; type Y :> X {} }",
-        );
+        let (mut model, interner, mut sink) =
+            parse_and_lower("package A { type X {} } package B { import A::*; type Y :> X {} }");
         assert!(!sink.has_errors());
 
         // First pass: resolve imports, then a second pass resolves the type ref
@@ -403,8 +399,7 @@ mod tests {
     #[test]
     fn self_cycle_detected_as_error() {
         // A :> A — self-referential
-        let (mut model, interner, mut sink) =
-            parse_and_lower("package P { type A :> A {} }");
+        let (mut model, interner, mut sink) = parse_and_lower("package P { type A :> A {} }");
 
         resolve_pass(&mut model, &interner, &mut sink);
 
@@ -416,9 +411,8 @@ mod tests {
     #[test]
     fn transitive_cycle_detected() {
         // A :> B, B :> C, C :> A — 3-node cycle
-        let (mut model, interner, mut sink) = parse_and_lower(
-            "package P { type A :> B {} type B :> C {} type C :> A {} }",
-        );
+        let (mut model, interner, mut sink) =
+            parse_and_lower("package P { type A :> B {} type B :> C {} type C :> A {} }");
 
         resolve_pass(&mut model, &interner, &mut sink);
 
@@ -430,9 +424,8 @@ mod tests {
     #[test]
     fn no_cycle_in_valid_chain() {
         // A :> B, B :> C — no cycle
-        let (mut model, interner, mut sink) = parse_and_lower(
-            "package P { type C {} type B :> C {} type A :> B {} }",
-        );
+        let (mut model, interner, mut sink) =
+            parse_and_lower("package P { type C {} type B :> C {} type A :> B {} }");
 
         resolve_pass(&mut model, &interner, &mut sink);
 

@@ -50,7 +50,7 @@ pub fn render_diagnostics(source_map: &SourceMap, diagnostics: &[Diagnostic]) {
             .collect();
         cs_diag = cs_diag.with_labels(labels);
 
-        let notes: Vec<String> = diag.notes.iter().cloned().collect();
+        let notes: Vec<String> = diag.notes.to_vec();
         cs_diag = cs_diag.with_notes(notes);
 
         let _ = term::emit_to_write_style(&mut writer.lock(), &config, &files, &cs_diag);

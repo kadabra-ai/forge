@@ -63,11 +63,20 @@ pub struct FeatureChain {
     pub span: Span,
 }
 
+/// Direction modifier for a feature (in, out, inout).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FeatureDirection {
+    In,
+    Out,
+    InOut,
+}
+
 /// `feature wheels : Wheel [4];`
 #[derive(Clone, Debug)]
 pub struct FeatureDecl {
     pub name: SymbolId,
     pub span: Span,
+    pub direction: Option<FeatureDirection>,
     pub type_ref: Option<QualifiedName>,
     pub chain: Option<FeatureChain>,
     pub multiplicity: Option<Multiplicity>,
@@ -76,9 +85,16 @@ pub struct FeatureDecl {
 /// Expression node (minimal for milestone 1).
 #[derive(Clone, Debug)]
 pub enum Expr {
-    IntLiteral { value: u64, span: Span },
-    Star { span: Span }, // `*` for unbounded multiplicity
-    Name { name: QualifiedName },
+    IntLiteral {
+        value: u64,
+        span: Span,
+    },
+    Star {
+        span: Span,
+    }, // `*` for unbounded multiplicity
+    Name {
+        name: QualifiedName,
+    },
     BinOp {
         op: BinOpKind,
         lhs: Box<Expr>,

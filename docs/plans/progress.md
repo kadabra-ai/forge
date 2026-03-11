@@ -26,7 +26,7 @@ All items shipped, pipeline works end-to-end.
 
 ### A. Compiler Depth (deepen existing pipeline)
 
-- [x] A1: Full conjugation — input/output direction flipping (type-level, explicit form) — 7cc1069
+- [x] A1: Full conjugation — input/output direction flipping (type-level, explicit form)
 - [ ] A1a: Named conjugation declarations — `conjugation c1 conjugate X conjugates Y;`
 - [ ] A1b: Feature-level conjugation — `feature g ~ B::f;`
 - [ ] A1c: Inline conjugated type refs — `feature port : ~FuelPort;` (anonymous type synthesis)

@@ -3,11 +3,7 @@ use kermlc_intern::SymbolId;
 
 /// Look up a name in the scope of a given def.
 /// Searches: own children, then ancestors' children, then root scope.
-pub fn resolve_in_scope(
-    model: &SemanticModel,
-    scope: DefId,
-    name: SymbolId,
-) -> Option<DefId> {
+pub fn resolve_in_scope(model: &SemanticModel, scope: DefId, name: SymbolId) -> Option<DefId> {
     // 1. Search own children
     if let Some(found) = model.find_child(scope, name) {
         return Some(found);
@@ -53,10 +49,7 @@ pub fn resolve_qualified(
 }
 
 /// Resolve a qualified name starting from root scope (no enclosing def).
-pub fn resolve_qualified_from_root(
-    model: &SemanticModel,
-    segments: &[SymbolId],
-) -> Option<DefId> {
+pub fn resolve_qualified_from_root(model: &SemanticModel, segments: &[SymbolId]) -> Option<DefId> {
     if segments.is_empty() {
         return None;
     }
@@ -72,11 +65,7 @@ pub fn resolve_qualified_from_root(
 
 /// Try to resolve imports for a given def's scope.
 /// Returns any defs imported by wildcard imports.
-pub fn resolve_via_imports(
-    model: &SemanticModel,
-    scope: DefId,
-    name: SymbolId,
-) -> Option<DefId> {
+pub fn resolve_via_imports(model: &SemanticModel, scope: DefId, name: SymbolId) -> Option<DefId> {
     let imports = model.defs[scope].imports.clone();
     for import in &imports {
         if let Some(target) = import.path.resolved_def() {

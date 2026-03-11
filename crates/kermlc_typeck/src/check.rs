@@ -1,5 +1,7 @@
 use kermlc_diagnostics::DiagnosticSink;
-use kermlc_hir::{DefId, DefKind, SemanticModel};
+use kermlc_hir::{
+    conjugate_direction, DefId, DefKind, InheritanceKind, InheritedFeature, SemanticModel,
+};
 use kermlc_intern::StringInterner;
 
 /// Run one pass of type checking over the model.
@@ -61,7 +63,7 @@ fn check_type(model: &mut SemanticModel, def_id: DefId) -> bool {
         .filter_map(|s| s.resolved_def())
         .collect();
 
-    let mut inherited = Vec::new();
+    let mut inherited: Vec<InheritedFeature> = Vec::new();
     for &super_id in &supertype_ids {
         // Collect own features of the supertype
         let super_features: Vec<DefId> = model.defs[super_id]
@@ -70,44 +72,79 @@ fn check_type(model: &mut SemanticModel, def_id: DefId) -> bool {
             .filter(|&&c| model.defs[c].kind == DefKind::Feature)
             .copied()
             .collect();
-        inherited.extend(super_features);
+        for f in super_features {
+            inherited.push(InheritedFeature {
+                def_id: f,
+                kind: InheritanceKind::Specialization,
+                direction_override: None,
+            });
+        }
 
         // Also collect inherited features of the supertype
         let super_inherited = model.defs[super_id].inherited_features.clone();
         inherited.extend(super_inherited);
     }
 
-    // Deduplicate
-    inherited.sort_by_key(|id| id.raw());
-    inherited.dedup();
+    // Deduplicate by def_id
+    inherited.sort_by_key(|f| f.def_id.raw());
+    inherited.dedup_by_key(|f| f.def_id);
 
     if model.defs[def_id].inherited_features != inherited {
         model.defs[def_id].inherited_features = inherited;
         changed = true;
     }
 
-    // Handle conjugation: for now, mark as type-checked
-    // Full conjugation (flipping feature directions) would need feature direction tracking
-    // which we'll simplify for milestone 1
+    // Handle conjugation: inherit features with flipped directions
     if let Some(conj) = &model.defs[def_id].conjugation {
         if let Some(conj_target) = conj.resolved_def() {
-            // Inherit features from conjugated type (simplified: same as specialization)
+            // Direct features of conjugated type
             let conj_features: Vec<DefId> = model.defs[conj_target]
                 .children
                 .iter()
                 .filter(|&&c| model.defs[c].kind == DefKind::Feature)
                 .copied()
                 .collect();
-            let conj_inherited = model.defs[conj_target].inherited_features.clone();
 
-            let mut all_conj: Vec<DefId> = conj_features;
+            let mut all_conj: Vec<InheritedFeature> = conj_features
+                .into_iter()
+                .map(|f| InheritedFeature {
+                    def_id: f,
+                    kind: InheritanceKind::Conjugation,
+                    direction_override: conjugate_direction(model.defs[f].direction),
+                })
+                .collect();
+
+            // Inherited features of conjugated type
+            let conj_inherited: Vec<InheritedFeature> = model.defs[conj_target]
+                .inherited_features
+                .iter()
+                .map(|inh| {
+                    let effective = inh.direction_override.or(model.defs[inh.def_id].direction);
+                    InheritedFeature {
+                        def_id: inh.def_id,
+                        kind: InheritanceKind::Conjugation,
+                        direction_override: conjugate_direction(effective),
+                    }
+                })
+                .collect();
             all_conj.extend(conj_inherited);
-            all_conj.sort_by_key(|id| id.raw());
-            all_conj.dedup();
 
-            // Add conjugated features to inherited (avoiding duplicates)
+            all_conj.sort_by_key(|f| f.def_id.raw());
+            all_conj.dedup_by_key(|f| f.def_id);
+
+            // Populate conjugate_of in TypeInfo
+            let type_id = model.def_to_type[def_id.raw() as usize];
+            if let Some(tid) = type_id {
+                model.type_infos[tid].conjugate_of = Some(conj_target);
+            }
+
+            // Add conjugated features (avoiding duplicates)
             for f in all_conj {
-                if !model.defs[def_id].inherited_features.contains(&f) {
+                let dominated = model.defs[def_id]
+                    .inherited_features
+                    .iter()
+                    .any(|existing| existing.def_id == f.def_id);
+                if !dominated {
                     model.defs[def_id].inherited_features.push(f);
                     changed = true;
                 }
@@ -146,7 +183,7 @@ fn check_feature(model: &mut SemanticModel, def_id: DefId) -> bool {
 mod tests {
     use super::*;
     use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-    use kermlc_hir::lower_ast;
+    use kermlc_hir::{lower_ast, FeatureDirection};
     use kermlc_intern::StringInterner;
     use kermlc_parser::Parser;
     use kermlc_resolve::resolve_pass;
@@ -173,9 +210,8 @@ mod tests {
 
     #[test]
     fn specialization_adds_inherited_features() {
-        let (model, interner, sink) = compile_to_model(
-            "package P { type A { feature x : A; } type B :> A {} }",
-        );
+        let (model, interner, sink) =
+            compile_to_model("package P { type A { feature x : A; } type B :> A {} }");
         assert!(!sink.has_errors());
 
         // Find B
@@ -193,9 +229,8 @@ mod tests {
 
     #[test]
     fn conjugation_inherits_features() {
-        let (model, interner, sink) = compile_to_model(
-            "package P { type T { feature f : T; } type U ~ T {} }",
-        );
+        let (model, interner, sink) =
+            compile_to_model("package P { type T { feature f : T; } type U ~ T {} }");
         assert!(!sink.has_errors());
 
         let pkg = model.roots[0];
@@ -209,10 +244,45 @@ mod tests {
     }
 
     #[test]
-    fn feature_type_ref_resolved() {
-        let (model, interner, sink) = compile_to_model(
-            "package P { type A {} type B { feature x : A; } }",
+    fn conjugation_flips_directions() {
+        let (model, interner, _sink) = compile_to_model(
+            r#"package P {
+            type A {
+                in feature f : A;
+                out feature g : A;
+                inout feature h : A;
+                feature x : A;
+            }
+            type B ~ A {}
+        }"#,
         );
+
+        let pkg = model.roots[0];
+        let b_id = model.defs[pkg].children[1];
+        assert_eq!(interner.resolve(model.defs[b_id].name), "B");
+
+        let inherited = &model.defs[b_id].inherited_features;
+        assert_eq!(inherited.len(), 4);
+
+        for inh in inherited {
+            let name = interner.resolve(model.defs[inh.def_id].name);
+            assert_eq!(inh.kind, InheritanceKind::Conjugation);
+            match name {
+                "f" => assert_eq!(inh.direction_override, Some(FeatureDirection::Out)),
+                "g" => assert_eq!(inh.direction_override, Some(FeatureDirection::In)),
+                "h" => assert_eq!(inh.direction_override, Some(FeatureDirection::InOut)),
+                "x" => {
+                    assert_eq!(inh.direction_override, None)
+                }
+                other => panic!("unexpected feature: {other}"),
+            }
+        }
+    }
+
+    #[test]
+    fn feature_type_ref_resolved() {
+        let (model, interner, sink) =
+            compile_to_model("package P { type A {} type B { feature x : A; } }");
         assert!(!sink.has_errors());
 
         let pkg = model.roots[0];

@@ -111,7 +111,10 @@ fn run_check(file_path: &str) -> i32 {
 
 fn run_compile(file_path: &str, output_path: &str, format: &str) -> i32 {
     if format != "json" {
-        eprintln!("error: unsupported format `{}`, only `json` is supported", format);
+        eprintln!(
+            "error: unsupported format `{}`, only `json` is supported",
+            format
+        );
         return 1;
     }
 
