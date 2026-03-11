@@ -433,6 +433,40 @@ fn valid_direction() {
     );
 }
 
+#[test]
+fn valid_multiplicity_feature_ref() {
+    let result = compile_file(
+        &fixtures_dir().join("valid/multiplicity_feature_ref.kerml"),
+    );
+    assert!(
+        !result.sink.has_errors(),
+        "Errors in multiplicity_feature_ref.kerml: {:?}",
+        result.sink.diagnostics()
+    );
+
+    // Verify the multiplicity ref resolved
+    let pkg = result.model.roots[0];
+    let conn_id = result.model.defs[pkg].children[0];
+    let ports_id = result.model.defs[conn_id].children[1];
+    let mult = result.model.defs[ports_id]
+        .multiplicity
+        .as_ref()
+        .expect("ports should have multiplicity");
+
+    assert!(
+        matches!(mult.lower, kermlc_hir::MultBound::Exact(1)),
+        "lower should be Exact(1)"
+    );
+    if let kermlc_hir::MultBound::Ref(ref name_ref) = mult.upper {
+        assert!(
+            name_ref.is_resolved(),
+            "upper bound 'portCount' should be resolved"
+        );
+    } else {
+        panic!("upper bound should be MultBound::Ref");
+    }
+}
+
 // ── Invalid fixture tests ────────────────────────────────────────────
 
 #[test]
@@ -459,6 +493,28 @@ fn invalid_feature_conjugates_type() {
     assert!(
         result.sink.has_errors(),
         "Feature conjugating a Type should produce an error"
+    );
+}
+
+#[test]
+fn invalid_multiplicity_unresolved_ref() {
+    let result = compile_file(
+        &fixtures_dir()
+            .join("invalid/multiplicity_unresolved_ref.kerml"),
+    );
+    assert!(
+        result.sink.has_errors(),
+        "Expected errors for unresolved multiplicity ref"
+    );
+    let has_mult_error = result
+        .sink
+        .diagnostics()
+        .iter()
+        .any(|d| d.message.contains("multiplicity bound"));
+    assert!(
+        has_mult_error,
+        "should have multiplicity bound error: {:?}",
+        result.sink.diagnostics()
     );
 }
 
