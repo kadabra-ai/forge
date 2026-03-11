@@ -65,6 +65,18 @@ pub struct FeatureChain {
     pub span: Span,
 }
 
+/// A type reference in a typing (`:`) position.
+/// Maps to KerML's GeneralType production + conjugation extension.
+#[derive(Clone, Debug)]
+pub enum TypeExpr {
+    /// Plain named reference: `T` or `A::B`
+    Named(QualifiedName),
+    /// Conjugated type reference: `~T`
+    Conjugated(QualifiedName, Span),
+    /// Feature chain used as type: `a.b` (future)
+    Chain(FeatureChain),
+}
+
 /// Direction modifier for a feature (in, out, inout).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeatureDirection {
@@ -79,7 +91,7 @@ pub struct FeatureDecl {
     pub name: SymbolId,
     pub span: Span,
     pub direction: Option<FeatureDirection>,
-    pub type_ref: Option<QualifiedName>,
+    pub type_ref: Option<TypeExpr>,
     pub conjugation: Option<QualifiedName>,
     pub chain: Option<FeatureChain>,
     pub multiplicity: Option<Multiplicity>,
