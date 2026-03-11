@@ -17,7 +17,7 @@ fn compile_source(source: &str) -> CompileResult {
     let file_id = source_map.add_file("test.kerml".into(), source.into());
 
     let parse = kermlc_parser::Parser::parse(source, file_id, &mut interner, &mut sink);
-    let mut model = lower_ast(&parse, &interner, &mut sink);
+    let mut model = lower_ast(&parse, &mut interner, &mut sink);
     let stdlib = load_stdlib(&mut model, &mut interner);
     add_implicit_specializations(&mut model, &stdlib);
 

@@ -369,7 +369,7 @@ mod tests {
         let mut sink = DiagnosticSink::new();
         let file_id = source_map.add_file("test.kerml".into(), input.into());
         let parse = Parser::parse(input, file_id, &mut interner, &mut sink);
-        let model = lower_ast(&parse, &interner, &mut sink);
+        let model = lower_ast(&parse, &mut interner, &mut sink);
         (model, interner, sink)
     }
 

@@ -83,7 +83,7 @@ fn run_check(file_path: &str) -> i32 {
     let parse = kermlc_parser::Parser::parse(&source, file_id, &mut interner, &mut sink);
 
     // Lower to HIR
-    let mut model = lower_ast(&parse, &interner, &mut sink);
+    let mut model = lower_ast(&parse, &mut interner, &mut sink);
 
     // Load stdlib + implicit specializations
     let stdlib = load_stdlib(&mut model, &mut interner);
@@ -136,7 +136,7 @@ fn run_compile(file_path: &str, output_path: &str, format: &str) -> i32 {
     let parse = kermlc_parser::Parser::parse(&source, file_id, &mut interner, &mut sink);
 
     // Lower to HIR
-    let mut model = lower_ast(&parse, &interner, &mut sink);
+    let mut model = lower_ast(&parse, &mut interner, &mut sink);
 
     // Load stdlib + implicit specializations
     let stdlib = load_stdlib(&mut model, &mut interner);
