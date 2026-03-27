@@ -43,75 +43,30 @@ pub fn emit_unresolved_errors(
 ) {
     for (_def_id, def) in model.defs.iter() {
         for spec in &def.specializations {
-            if spec.resolution == ResolutionState::Unresolved {
-                let name_str = segments_to_string(&spec.segments, interner);
-                sink.emit(
-                    Diagnostic::error(format!("unresolved type `{}`", name_str))
-                        .with_label(Label::primary(spec.span, "not found")),
-                );
-            }
+            emit_unresolved(spec, "type", interner, sink);
         }
-
         if let Some(conj) = &def.conjugation {
-            if conj.resolution == ResolutionState::Unresolved {
-                let name_str = segments_to_string(&conj.segments, interner);
-                sink.emit(
-                    Diagnostic::error(format!("unresolved conjugation target `{}`", name_str))
-                        .with_label(Label::primary(conj.span, "not found")),
-                );
-            }
+            emit_unresolved(conj, "conjugation target", interner, sink);
         }
-
         if let Some(type_ref) = &def.type_ref {
-            if type_ref.resolution == ResolutionState::Unresolved {
-                let name_str = segments_to_string(&type_ref.segments, interner);
-                sink.emit(
-                    Diagnostic::error(format!("unresolved type `{}`", name_str))
-                        .with_label(Label::primary(type_ref.span, "not found")),
-                );
-            }
+            emit_unresolved(type_ref, "type", interner, sink);
         }
-
         if let Some((ref conj, ref orig)) = def.conjugation_decl {
-            if conj.resolution == ResolutionState::Unresolved {
-                let name_str = segments_to_string(&conj.segments, interner);
-                sink.emit(
-                    Diagnostic::error(format!("unresolved conjugated type `{name_str}`"))
-                        .with_label(Label::primary(conj.span, "not found")),
-                );
-            }
-            if orig.resolution == ResolutionState::Unresolved {
-                let name_str = segments_to_string(&orig.segments, interner);
-                sink.emit(
-                    Diagnostic::error(format!("unresolved original type `{name_str}`"))
-                        .with_label(Label::primary(orig.span, "not found")),
-                );
-            }
+            emit_unresolved(conj, "conjugated type", interner, sink);
+            emit_unresolved(orig, "original type", interner, sink);
         }
-
         for chain_seg in &def.chain_segments {
-            if chain_seg.resolution == ResolutionState::Unresolved {
-                let name_str = segments_to_string(&chain_seg.segments, interner);
-                sink.emit(
-                    Diagnostic::error(format!("unresolved chain segment `{}`", name_str))
-                        .with_label(Label::primary(chain_seg.span, "not found")),
-                );
-            }
+            emit_unresolved(chain_seg, "chain segment", interner, sink);
         }
-
         if let Some(ref mult) = def.multiplicity {
             for bound in [&mult.lower, &mult.upper] {
                 if let kermlc_hir::MultBound::Ref(ref r) = bound {
-                    if r.resolution == ResolutionState::Unresolved {
-                        let name_str = segments_to_string(&r.segments, interner);
-                        sink.emit(
-                            Diagnostic::error(format!(
-                                "unresolved multiplicity bound `{}`",
-                                name_str
-                            ))
-                            .with_label(Label::primary(r.span, "not found")),
-                        );
-                    }
+                    emit_unresolved(
+                        r,
+                        "multiplicity bound",
+                        interner,
+                        sink,
+                    );
                 }
             }
         }
@@ -196,6 +151,21 @@ pub fn detect_specialization_cycles(
     found_cycle
 }
 
+fn emit_unresolved(
+    nr: &kermlc_hir::NameRef,
+    kind: &str,
+    interner: &StringInterner,
+    sink: &mut DiagnosticSink,
+) {
+    if nr.resolution == ResolutionState::Unresolved {
+        let name_str = segments_to_string(&nr.segments, interner);
+        sink.emit(
+            Diagnostic::error(format!("unresolved {kind} `{name_str}`"))
+                .with_label(Label::primary(nr.span, "not found")),
+        );
+    }
+}
+
 fn segments_to_string(segments: &[kermlc_intern::SymbolId], interner: &StringInterner) -> String {
     segments
         .iter()
@@ -204,130 +174,131 @@ fn segments_to_string(segments: &[kermlc_intern::SymbolId], interner: &StringInt
         .join("::")
 }
 
-fn resolve_imports_for(model: &mut SemanticModel, def_id: DefId) -> bool {
+/// Resolve all unresolved `NameRef`s in a `Vec` field of `Def`.
+fn resolve_name_ref_vec(
+    model: &mut SemanticModel,
+    def_id: DefId,
+    get: fn(&kermlc_hir::Def) -> &[kermlc_hir::NameRef],
+    get_mut: fn(&mut kermlc_hir::Def) -> &mut [kermlc_hir::NameRef],
+) -> bool {
+    let count = get(&model.defs[def_id]).len();
     let mut changed = false;
-    let num_imports = model.defs[def_id].imports.len();
-
-    for i in 0..num_imports {
-        if model.defs[def_id].imports[i].path.resolution != ResolutionState::Unresolved {
+    for i in 0..count {
+        if get(&model.defs[def_id])[i].resolution != ResolutionState::Unresolved {
             continue;
         }
-
-        let segments = model.defs[def_id].imports[i].path.segments.clone();
+        let segments = get(&model.defs[def_id])[i].segments.clone();
         if let Some(resolved) = try_resolve_name(model, def_id, &segments) {
-            model.defs[def_id].imports[i].path.resolution = ResolutionState::Resolved(resolved);
+            get_mut(&mut model.defs[def_id])[i].resolution =
+                ResolutionState::Resolved(resolved);
             changed = true;
         }
     }
-
     changed
 }
 
-fn resolve_specializations_for(model: &mut SemanticModel, def_id: DefId) -> bool {
-    let mut changed = false;
-    let num_specs = model.defs[def_id].specializations.len();
+/// Resolve an unresolved `Option<NameRef>` field of `Def`.
+fn resolve_optional_ref(
+    model: &mut SemanticModel,
+    def_id: DefId,
+    get: fn(&kermlc_hir::Def) -> Option<&kermlc_hir::NameRef>,
+    set: fn(&mut kermlc_hir::Def, ResolutionState),
+) -> bool {
+    let segments = match get(&model.defs[def_id]) {
+        Some(nr) if nr.resolution == ResolutionState::Unresolved => {
+            nr.segments.clone()
+        }
+        _ => return false,
+    };
+    let Some(resolved) = try_resolve_name(model, def_id, &segments) else {
+        return false;
+    };
+    set(
+        &mut model.defs[def_id],
+        ResolutionState::Resolved(resolved),
+    );
+    true
+}
 
-    for i in 0..num_specs {
-        if model.defs[def_id].specializations[i].resolution != ResolutionState::Unresolved {
+fn resolve_imports_for(model: &mut SemanticModel, def_id: DefId) -> bool {
+    let count = model.defs[def_id].imports.len();
+    let mut changed = false;
+    for i in 0..count {
+        if model.defs[def_id].imports[i].path.resolution
+            != ResolutionState::Unresolved
+        {
             continue;
         }
-
-        let segments = model.defs[def_id].specializations[i].segments.clone();
+        let segments = model.defs[def_id].imports[i].path.segments.clone();
         if let Some(resolved) = try_resolve_name(model, def_id, &segments) {
-            model.defs[def_id].specializations[i].resolution = ResolutionState::Resolved(resolved);
+            model.defs[def_id].imports[i].path.resolution =
+                ResolutionState::Resolved(resolved);
             changed = true;
         }
     }
-
     changed
+}
+
+fn resolve_specializations_for(
+    model: &mut SemanticModel,
+    def_id: DefId,
+) -> bool {
+    resolve_name_ref_vec(
+        model,
+        def_id,
+        |d| &d.specializations,
+        |d| &mut d.specializations,
+    )
 }
 
 fn resolve_conjugation_for(model: &mut SemanticModel, def_id: DefId) -> bool {
-    let conj = match &model.defs[def_id].conjugation {
-        Some(c) if c.resolution == ResolutionState::Unresolved => c.segments.clone(),
-        _ => return false,
-    };
-
-    if let Some(resolved) = try_resolve_name(model, def_id, &conj) {
-        model.defs[def_id].conjugation.as_mut().unwrap().resolution =
-            ResolutionState::Resolved(resolved);
-        true
-    } else {
-        false
-    }
+    resolve_optional_ref(
+        model,
+        def_id,
+        |d| d.conjugation.as_ref(),
+        |d, res| d.conjugation.as_mut().unwrap().resolution = res,
+    )
 }
 
-fn resolve_conjugation_decl_for(model: &mut SemanticModel, def_id: DefId) -> bool {
+fn resolve_conjugation_decl_for(
+    model: &mut SemanticModel,
+    def_id: DefId,
+) -> bool {
     if model.defs[def_id].kind != kermlc_hir::DefKind::Conjugation {
         return false;
     }
     let mut changed = false;
-
-    if let Some((ref conj, _)) = model.defs[def_id].conjugation_decl {
-        if conj.resolution == ResolutionState::Unresolved {
-            let segs = conj.segments.clone();
-            if let Some(resolved) = try_resolve_name(model, def_id, &segs) {
-                model.defs[def_id]
-                    .conjugation_decl
-                    .as_mut()
-                    .unwrap()
-                    .0
-                    .resolution = ResolutionState::Resolved(resolved);
-                changed = true;
-            }
-        }
-    }
-
-    if let Some((_, ref orig)) = model.defs[def_id].conjugation_decl {
-        if orig.resolution == ResolutionState::Unresolved {
-            let segs = orig.segments.clone();
-            if let Some(resolved) = try_resolve_name(model, def_id, &segs) {
-                model.defs[def_id]
-                    .conjugation_decl
-                    .as_mut()
-                    .unwrap()
-                    .1
-                    .resolution = ResolutionState::Resolved(resolved);
-                changed = true;
-            }
-        }
-    }
-
+    changed |= resolve_optional_ref(
+        model,
+        def_id,
+        |d| d.conjugation_decl.as_ref().map(|(c, _)| c),
+        |d, res| d.conjugation_decl.as_mut().unwrap().0.resolution = res,
+    );
+    changed |= resolve_optional_ref(
+        model,
+        def_id,
+        |d| d.conjugation_decl.as_ref().map(|(_, o)| o),
+        |d, res| d.conjugation_decl.as_mut().unwrap().1.resolution = res,
+    );
     changed
 }
 
 fn resolve_type_ref_for(model: &mut SemanticModel, def_id: DefId) -> bool {
-    let type_ref = match &model.defs[def_id].type_ref {
-        Some(tr) if tr.resolution == ResolutionState::Unresolved => tr.segments.clone(),
-        _ => return false,
-    };
-
-    if let Some(resolved) = try_resolve_name(model, def_id, &type_ref) {
-        model.defs[def_id].type_ref.as_mut().unwrap().resolution =
-            ResolutionState::Resolved(resolved);
-        true
-    } else {
-        false
-    }
+    resolve_optional_ref(
+        model,
+        def_id,
+        |d| d.type_ref.as_ref(),
+        |d, res| d.type_ref.as_mut().unwrap().resolution = res,
+    )
 }
 
 fn resolve_chains_for(model: &mut SemanticModel, def_id: DefId) -> bool {
-    let mut changed = false;
-    let num_chains = model.defs[def_id].chain_segments.len();
-
-    for i in 0..num_chains {
-        if model.defs[def_id].chain_segments[i].resolution != ResolutionState::Unresolved {
-            continue;
-        }
-
-        let segments = model.defs[def_id].chain_segments[i].segments.clone();
-        if let Some(resolved) = try_resolve_name(model, def_id, &segments) {
-            model.defs[def_id].chain_segments[i].resolution = ResolutionState::Resolved(resolved);
-            changed = true;
-        }
-    }
-
-    changed
+    resolve_name_ref_vec(
+        model,
+        def_id,
+        |d| &d.chain_segments,
+        |d| &mut d.chain_segments,
+    )
 }
 
 fn resolve_multiplicity_refs_for(model: &mut SemanticModel, def_id: DefId) -> bool {
