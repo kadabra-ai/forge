@@ -199,6 +199,7 @@ dependencies = [
  "kermlc_hir",
  "kermlc_intern",
  "kermlc_parser",
+ "kermlc_typeck",
 ]
 
 [[package]]

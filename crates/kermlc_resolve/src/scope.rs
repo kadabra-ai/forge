@@ -91,11 +91,7 @@ pub fn resolve_via_imports(model: &SemanticModel, scope: DefId, name: SymbolId) 
 /// Searches direct children, then inherited features.
 /// No parent walking, no imports — strict member lookup only.
 /// Used for type-directed chain resolution (A3).
-pub fn find_member(
-    model: &SemanticModel,
-    type_def_id: DefId,
-    name: SymbolId,
-) -> Option<DefId> {
+pub fn find_member(model: &SemanticModel, type_def_id: DefId, name: SymbolId) -> Option<DefId> {
     // 1. Direct children
     if let Some(found) = model.find_child(type_def_id, name) {
         return Some(found);
@@ -119,25 +115,20 @@ mod tests {
     use kermlc_intern::StringInterner;
     use kermlc_parser::Parser;
 
-    fn parse_and_lower(
-        input: &str,
-    ) -> (SemanticModel, StringInterner, DiagnosticSink) {
+    fn parse_and_lower(input: &str) -> (SemanticModel, StringInterner, DiagnosticSink) {
         let mut interner = StringInterner::new();
         let mut source_map = SourceMap::new();
         let mut sink = DiagnosticSink::new();
-        let file_id =
-            source_map.add_file("test.kerml".into(), input.into());
-        let parse =
-            Parser::parse(input, file_id, &mut interner, &mut sink);
+        let file_id = source_map.add_file("test.kerml".into(), input.into());
+        let parse = Parser::parse(input, file_id, &mut interner, &mut sink);
         let model = lower_ast(&parse, &mut interner, &mut sink);
         (model, interner, sink)
     }
 
     #[test]
     fn find_member_direct_child() {
-        let (mut model, interner, mut sink) = parse_and_lower(
-            "package P { type T { feature f : T; } }",
-        );
+        let (mut model, interner, mut sink) =
+            parse_and_lower("package P { type T { feature f : T; } }");
         crate::resolve_pass(&mut model, &interner, &mut sink);
 
         let pkg = model.roots[0];
@@ -151,9 +142,8 @@ mod tests {
 
     #[test]
     fn find_member_not_found() {
-        let (model, mut interner, _sink) = parse_and_lower(
-            "package P { type T { feature f : T; } }",
-        );
+        let (model, mut interner, _sink) =
+            parse_and_lower("package P { type T { feature f : T; } }");
 
         let pkg = model.roots[0];
         let t_id = model.defs[pkg].children[0];
@@ -165,16 +155,11 @@ mod tests {
 
     #[test]
     fn find_member_inherited_feature() {
-        let (mut model, interner, mut sink) = parse_and_lower(
-            "package P { type A { feature x : A; } type B :> A {} }",
-        );
+        let (mut model, interner, mut sink) =
+            parse_and_lower("package P { type A { feature x : A; } type B :> A {} }");
         for _ in 0..10 {
-            let r = crate::resolve_pass(
-                &mut model, &interner, &mut sink,
-            );
-            let t = kermlc_typeck::typecheck_pass(
-                &mut model, &interner, &mut sink,
-            );
+            let r = crate::resolve_pass(&mut model, &interner, &mut sink);
+            let t = kermlc_typeck::typecheck_pass(&mut model, &interner, &mut sink);
             if !r && !t {
                 break;
             }
@@ -192,9 +177,8 @@ mod tests {
 
     #[test]
     fn find_member_no_parent_walking() {
-        let (model, mut interner, _sink) = parse_and_lower(
-            "package P { type T {} feature outside : T; }",
-        );
+        let (model, mut interner, _sink) =
+            parse_and_lower("package P { type T {} feature outside : T; }");
 
         let pkg = model.roots[0];
         let t_id = model.defs[pkg].children[0];

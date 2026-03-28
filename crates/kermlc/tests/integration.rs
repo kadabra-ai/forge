@@ -499,9 +499,7 @@ fn invalid_multiplicity_unresolved_ref() {
 
 #[test]
 fn invalid_chain_bad_member() {
-    let result = compile_file(
-        &fixtures_dir().join("invalid/chain_bad_member.kerml"),
-    );
+    let result = compile_file(&fixtures_dir().join("invalid/chain_bad_member.kerml"));
     assert!(
         result.sink.has_errors(),
         "bad chain member should produce error"

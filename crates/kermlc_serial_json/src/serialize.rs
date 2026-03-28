@@ -191,8 +191,7 @@ fn build_elements(model: &SemanticModel, interner: &StringInterner) -> Vec<Value
                     })
                     .collect();
                 if !chaining.is_empty() {
-                    element["ownedFeatureChaining"] =
-                        json!(chaining);
+                    element["ownedFeatureChaining"] = json!(chaining);
                 }
             }
         }
