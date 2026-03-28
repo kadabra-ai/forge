@@ -59,11 +59,11 @@ mod tests {
         assert!(!sink.has_errors());
 
         let pkg = model.roots[0];
-        let a_id = model.defs[pkg].children[0];
-        let b_id = model.defs[pkg].children[1];
+        let a_id = model.children(pkg).next().unwrap();
+        let b_id = model.children(pkg).nth(1).unwrap();
 
         // A's feature x should have type ref resolved to B
-        let x_id = model.defs[a_id].children[0];
+        let x_id = model.children(a_id).next().unwrap();
         assert!(model.defs[x_id].type_ref.as_ref().unwrap().is_resolved());
         assert_eq!(
             model.defs[x_id].type_ref.as_ref().unwrap().resolved_def(),
@@ -71,7 +71,7 @@ mod tests {
         );
 
         // B's feature y should have type ref resolved to A
-        let y_id = model.defs[b_id].children[0];
+        let y_id = model.children(b_id).next().unwrap();
         assert!(model.defs[y_id].type_ref.as_ref().unwrap().is_resolved());
         assert_eq!(
             model.defs[y_id].type_ref.as_ref().unwrap().resolved_def(),
@@ -93,13 +93,13 @@ mod tests {
         assert!(!sink.has_errors());
 
         let pkg = model.roots[0];
-        let c_id = model.defs[pkg].children[2];
+        let c_id = model.children(pkg).nth(2).unwrap();
         assert_eq!(interner.resolve(model.defs[c_id].name), "C");
         assert!(model.defs[c_id].type_checked);
 
         // C should inherit feature x from A (through B)
         assert!(
-            !model.defs[c_id].inherited_features.is_empty(),
+            !model.defs[c_id].inherited_memberships.is_empty(),
             "C should inherit features from B which inherits from A"
         );
     }
@@ -118,7 +118,7 @@ mod tests {
         assert!(!sink.has_errors());
 
         let app_pkg = model.roots[1];
-        let widget_id = model.defs[app_pkg].children[0];
+        let widget_id = model.children(app_pkg).next().unwrap();
         assert_eq!(interner.resolve(model.defs[widget_id].name), "Widget");
         assert!(model.defs[widget_id].specializations[0].is_resolved());
         assert!(model.defs[widget_id].type_checked);

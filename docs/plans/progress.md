@@ -2,7 +2,7 @@
 
 This tasks are related to the design in [2026-02-15-kermlc-compiler-design.md](./2026-02-15-kermlc-compiler-design.md)
 
-Last updated: 2026-03-28 (A3 complete)
+Last updated: 2026-03-28 (A5 complete)
 
 ## Milestone 1 — Complete
 
@@ -34,8 +34,8 @@ All items shipped, pipeline works end-to-end.
 - [x] A1c: Inline conjugated type refs — `feature port : ~FuelPort;` (anonymous type synthesis)
 - [x] A2: Expression evaluation — symbolic MultBound (Star, IntLiteral, FeatureRef)
 - [x] A3: Feature chaining resolution — type-directed chain walking (a.b.c)
-- [ ] A4: Diamond inheritance — ordering-independent membership dedup
-- [ ] A5: Visibility (public/protected/private) — grammar + semantics
+- [ ] A4: Diamond inheritance — ordering-independent membership dedup (depends on: Membership layer + `removeRedefinedFeatures`)
+- [x] A5: Visibility (public/protected/private) — grammar + semantics + Membership layer
 - [ ] A6: DiagnosticCode + Suggestions — E0001 codes, "did you mean?" hints
 
 ### B. Compiler Breadth (grow grammar + capabilities)

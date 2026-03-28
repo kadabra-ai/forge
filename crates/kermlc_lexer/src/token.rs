@@ -15,6 +15,10 @@ pub enum TokenKind {
     In,
     Out,
     InOut,
+    Public,
+    Private,
+    Protected,
+    Member,
 
     // Literals
     IntLiteral,

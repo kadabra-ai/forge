@@ -1,7 +1,5 @@
 use kermlc_diagnostics::DiagnosticSink;
-use kermlc_hir::{
-    conjugate_direction, DefId, DefKind, InheritanceKind, InheritedFeature, SemanticModel,
-};
+use kermlc_hir::{DefId, DefKind, MembershipId, MembershipKind, SemanticModel, Visibility};
 use kermlc_intern::StringInterner;
 
 /// Run one pass of type checking over the model.
@@ -38,121 +36,70 @@ pub fn typecheck_pass(
     changed
 }
 
-/// Check a type definition: verify specializations are resolved and compute inherited features.
+/// Check a type definition: verify specializations are resolved
+/// and compute inherited memberships.
 fn check_type(model: &mut SemanticModel, def_id: DefId) -> bool {
     let mut changed = false;
 
-    // Check if all specializations are resolved
     let all_specs_resolved = model.defs[def_id]
         .specializations
         .iter()
         .all(|s| s.is_resolved());
-
     if !all_specs_resolved {
-        return false; // Can't type-check yet, defer
+        return false;
     }
 
-    // Check conjugation if present
     if let Some(conj) = &model.defs[def_id].conjugation {
         if !conj.is_resolved() {
-            return false; // Can't type-check yet
+            return false;
         }
     }
 
-    // Collect inherited features from supertypes
+    // Collect inherited memberships from supertypes
     let supertype_ids: Vec<DefId> = model.defs[def_id]
         .specializations
         .iter()
         .filter_map(|s| s.resolved_def())
         .collect();
 
-    let mut inherited: Vec<InheritedFeature> = Vec::new();
-    for &super_id in &supertype_ids {
-        // Collect own features of the supertype
-        let super_features: Vec<DefId> = model.defs[super_id]
-            .children
-            .iter()
-            .filter(|&&c| model.defs[c].kind == DefKind::Feature)
-            .copied()
-            .collect();
-        for f in super_features {
-            inherited.push(InheritedFeature {
-                def_id: f,
-                kind: InheritanceKind::Specialization,
-                direction_override: None,
-            });
-        }
+    let mut inherited: Vec<MembershipId> = Vec::new();
 
-        // Also collect inherited features of the supertype
-        let super_inherited = model.defs[super_id].inherited_features.clone();
+    for &super_id in &supertype_ids {
+        for &mid in &model.defs[super_id].owned_memberships {
+            let m = &model.memberships[mid];
+            if m.visibility != Visibility::Private
+                && (m.kind == MembershipKind::Feature || m.kind == MembershipKind::Member)
+            {
+                inherited.push(mid);
+            }
+        }
+        let super_inherited = model.defs[super_id].inherited_memberships.clone();
         inherited.extend(super_inherited);
     }
 
-    // Deduplicate by def_id
-    inherited.sort_by_key(|f| f.def_id.raw());
-    inherited.dedup_by_key(|f| f.def_id);
-
-    if model.defs[def_id].inherited_features != inherited {
-        model.defs[def_id].inherited_features = inherited;
-        changed = true;
-    }
-
-    // Handle conjugation: inherit features with flipped directions
+    // Collect from conjugation target
     if let Some(conj) = &model.defs[def_id].conjugation {
-        if let Some(conj_target) = conj.resolved_def() {
-            // Direct features of conjugated type
-            let conj_features: Vec<DefId> = model.defs[conj_target]
-                .children
-                .iter()
-                .filter(|&&c| model.defs[c].kind == DefKind::Feature)
-                .copied()
-                .collect();
-
-            let mut all_conj: Vec<InheritedFeature> = conj_features
-                .into_iter()
-                .map(|f| InheritedFeature {
-                    def_id: f,
-                    kind: InheritanceKind::Conjugation,
-                    direction_override: conjugate_direction(model.defs[f].direction),
-                })
-                .collect();
-
-            // Inherited features of conjugated type
-            let conj_inherited: Vec<InheritedFeature> = model.defs[conj_target]
-                .inherited_features
-                .iter()
-                .map(|inh| {
-                    let effective = inh.direction_override.or(model.defs[inh.def_id].direction);
-                    InheritedFeature {
-                        def_id: inh.def_id,
-                        kind: InheritanceKind::Conjugation,
-                        direction_override: conjugate_direction(effective),
-                    }
-                })
-                .collect();
-            all_conj.extend(conj_inherited);
-
-            all_conj.sort_by_key(|f| f.def_id.raw());
-            all_conj.dedup_by_key(|f| f.def_id);
-
-            // Populate conjugate_of in TypeInfo
-            let type_id = model.def_to_type[def_id.raw() as usize];
-            if let Some(tid) = type_id {
-                model.type_infos[tid].conjugate_of = Some(conj_target);
-            }
-
-            // Add conjugated features (avoiding duplicates)
-            for f in all_conj {
-                let dominated = model.defs[def_id]
-                    .inherited_features
-                    .iter()
-                    .any(|existing| existing.def_id == f.def_id);
-                if !dominated {
-                    model.defs[def_id].inherited_features.push(f);
-                    changed = true;
+        if let Some(conj_id) = conj.resolved_def() {
+            for &mid in &model.defs[conj_id].owned_memberships {
+                let m = &model.memberships[mid];
+                if m.visibility != Visibility::Private
+                    && (m.kind == MembershipKind::Feature || m.kind == MembershipKind::Member)
+                {
+                    inherited.push(mid);
                 }
             }
+            let conj_inherited = model.defs[conj_id].inherited_memberships.clone();
+            inherited.extend(conj_inherited);
         }
+    }
+
+    // Dedup by MembershipId
+    inherited.sort_by_key(|mid| mid.raw());
+    inherited.dedup();
+
+    if model.defs[def_id].inherited_memberships != inherited {
+        model.defs[def_id].inherited_memberships = inherited;
+        changed = true;
     }
 
     model.defs[def_id].type_checked = true;
@@ -255,15 +202,12 @@ mod tests {
             compile_to_model("package P { type A { feature x : A; } type B :> A {} }");
         assert!(!sink.has_errors());
 
-        // Find B
         let pkg = model.roots[0];
-        let b_id = model.defs[pkg].children[1];
+        let b_id = model.children(pkg).nth(1).unwrap();
         assert_eq!(interner.resolve(model.defs[b_id].name), "B");
         assert!(model.defs[b_id].type_checked);
-
-        // B should inherit feature x from A
         assert!(
-            !model.defs[b_id].inherited_features.is_empty(),
+            !model.defs[b_id].inherited_memberships.is_empty(),
             "B should inherit features from A"
         );
     }
@@ -275,11 +219,11 @@ mod tests {
         assert!(!sink.has_errors());
 
         let pkg = model.roots[0];
-        let u_id = model.defs[pkg].children[1];
+        let u_id = model.children(pkg).nth(1).unwrap();
         assert_eq!(interner.resolve(model.defs[u_id].name), "U");
         assert!(model.defs[u_id].type_checked);
         assert!(
-            !model.defs[u_id].inherited_features.is_empty(),
+            !model.defs[u_id].inherited_memberships.is_empty(),
             "U should inherit features from conjugated T"
         );
     }
@@ -299,25 +243,46 @@ mod tests {
         );
 
         let pkg = model.roots[0];
-        let b_id = model.defs[pkg].children[1];
+        let _a_id = model.children(pkg).next().unwrap();
+        let b_id = model.children(pkg).nth(1).unwrap();
         assert_eq!(interner.resolve(model.defs[b_id].name), "B");
 
-        let inherited = &model.defs[b_id].inherited_features;
-        assert_eq!(inherited.len(), 4);
+        let inherited = &model.defs[b_id].inherited_memberships;
+        assert_eq!(inherited.len(), 4, "B should have 4 inherited memberships");
 
-        for inh in inherited {
-            let name = interner.resolve(model.defs[inh.def_id].name);
-            assert_eq!(inh.kind, InheritanceKind::Conjugation);
+        for &mid in inherited {
+            let feat_id = model.memberships[mid].member_def;
+            let name = interner.resolve(model.defs[feat_id].name);
+            let dir = model.direction_of(feat_id, b_id);
             match name {
-                "f" => assert_eq!(inh.direction_override, Some(FeatureDirection::Out)),
-                "g" => assert_eq!(inh.direction_override, Some(FeatureDirection::In)),
-                "h" => assert_eq!(inh.direction_override, Some(FeatureDirection::InOut)),
-                "x" => {
-                    assert_eq!(inh.direction_override, None)
-                }
+                "f" => assert_eq!(dir, Some(FeatureDirection::Out)),
+                "g" => assert_eq!(dir, Some(FeatureDirection::In)),
+                "h" => assert_eq!(dir, Some(FeatureDirection::InOut)),
+                "x" => assert_eq!(dir, None),
                 other => panic!("unexpected feature: {other}"),
             }
         }
+    }
+
+    #[test]
+    fn nested_types_not_inherited() {
+        let (model, interner, sink) = compile_to_model(
+            "package P { type A { type Inner {} feature f : A; } type B :> A {} }",
+        );
+        assert!(!sink.has_errors(), "{:?}", sink.diagnostics());
+
+        let pkg = model.roots[0];
+        let b_id = model.children(pkg).nth(1).unwrap();
+        assert_eq!(interner.resolve(model.defs[b_id].name), "B");
+
+        assert_eq!(
+            model.defs[b_id].inherited_memberships.len(),
+            1,
+            "B should only inherit features, not nested types"
+        );
+        let mid = model.defs[b_id].inherited_memberships[0];
+        let name = interner.resolve(model.defs[model.memberships[mid].member_def].name);
+        assert_eq!(name, "f");
     }
 
     #[test]
@@ -327,8 +292,8 @@ mod tests {
         assert!(!sink.has_errors());
 
         let pkg = model.roots[0];
-        let b_id = model.defs[pkg].children[1];
-        let x_id = model.defs[b_id].children[0];
+        let b_id = model.children(pkg).nth(1).unwrap();
+        let x_id = model.children(b_id).next().unwrap();
         assert_eq!(interner.resolve(model.defs[x_id].name), "x");
         assert!(model.defs[x_id].type_ref.as_ref().unwrap().is_resolved());
         assert!(model.defs[x_id].type_checked);

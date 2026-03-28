@@ -22,9 +22,17 @@ pub fn lower_ast(
         ctx.model.roots.push(def_id);
     }
 
-    // Lower top-level members
-    for member in &parse.source_file.members {
-        for def_id in ctx.lower_member(member) {
+    // Lower top-level members (roots, no parent namespace)
+    for entry in &parse.source_file.members {
+        let def_ids = match &entry.member {
+            kermlc_ast::Member::Package(id) => vec![ctx.lower_package(*id)],
+            kermlc_ast::Member::Type(id) => vec![ctx.lower_type(*id)],
+            kermlc_ast::Member::Feature(id) => ctx.lower_feature(*id),
+            kermlc_ast::Member::Conjugation(id) => {
+                vec![ctx.lower_conjugation_decl(*id)]
+            }
+        };
+        for def_id in def_ids {
             ctx.model.roots.push(def_id);
         }
     }
@@ -48,6 +56,7 @@ impl<'a> LowerCtx<'a> {
             def.imports.push(Import {
                 path: NameRef::unresolved(import.path.segments.clone(), import.path.span),
                 is_wildcard: import.is_wildcard,
+                visibility: import.visibility.unwrap_or(Visibility::Private),
                 span: import.span,
             });
         }
@@ -55,19 +64,18 @@ impl<'a> LowerCtx<'a> {
         let def_id = self.model.alloc_def(def);
 
         // Lower members
-        for member in &pkg.members {
-            for child_id in self.lower_member(member) {
-                self.model.add_child(def_id, child_id);
-            }
+        for entry in &pkg.members {
+            self.lower_member(entry, def_id);
         }
 
         def_id
     }
 
-    /// Lower a member, returning the primary DefId plus any
-    /// synthesized siblings (e.g. anonymous conjugated types).
-    fn lower_member(&mut self, member: &kermlc_ast::Member) -> Vec<DefId> {
-        match member {
+    /// Lower a member entry, creating Membership relationships.
+    fn lower_member(&mut self, entry: &kermlc_ast::MemberEntry, parent: DefId) {
+        let visibility = entry.visibility.unwrap_or(Visibility::Public);
+
+        let def_ids = match &entry.member {
             kermlc_ast::Member::Package(id) => {
                 vec![self.lower_package(*id)]
             }
@@ -78,6 +86,19 @@ impl<'a> LowerCtx<'a> {
             kermlc_ast::Member::Conjugation(id) => {
                 vec![self.lower_conjugation_decl(*id)]
             }
+        };
+
+        for def_id in def_ids {
+            let kind = if entry.is_member_only {
+                MembershipKind::Member
+            } else {
+                match &entry.member {
+                    kermlc_ast::Member::Feature(_) => MembershipKind::Feature,
+                    _ => MembershipKind::Owning,
+                }
+            };
+            self.model
+                .add_member(parent, def_id, visibility, kind, entry.span);
         }
     }
 
@@ -99,10 +120,8 @@ impl<'a> LowerCtx<'a> {
         let def_id = self.model.alloc_def(def);
 
         // Lower nested members
-        for member in &ty.members {
-            for child_id in self.lower_member(member) {
-                self.model.add_child(def_id, child_id);
-            }
+        for entry in &ty.members {
+            self.lower_member(entry, def_id);
         }
 
         def_id
@@ -263,10 +282,11 @@ mod tests {
         let (model, interner, sink) = lower("package P { type Car :> Vehicle {} }");
         assert!(!sink.has_errors());
 
-        let pkg = &model.defs[model.roots[0]];
-        assert_eq!(pkg.children.len(), 1);
+        let pkg_id = model.roots[0];
+        assert_eq!(model.defs[pkg_id].owned_memberships.len(), 1,);
 
-        let car = &model.defs[pkg.children[0]];
+        let car_id = model.children(pkg_id).next().unwrap();
+        let car = &model.defs[car_id];
         assert_eq!(car.kind, DefKind::Type);
         assert_eq!(interner.resolve(car.name), "Car");
         assert_eq!(car.specializations.len(), 1);
@@ -281,9 +301,10 @@ mod tests {
         let (model, interner, sink) = lower("package P { type T { in feature f : Integer; } }");
         assert!(!sink.has_errors());
 
-        let pkg = &model.defs[model.roots[0]];
-        let ty = &model.defs[pkg.children[0]];
-        let feat = &model.defs[ty.children[0]];
+        let pkg_id = model.roots[0];
+        let ty_id = model.children(pkg_id).next().unwrap();
+        let feat_id = model.children(ty_id).next().unwrap();
+        let feat = &model.defs[feat_id];
         assert_eq!(feat.kind, DefKind::Feature);
         assert_eq!(interner.resolve(feat.name), "f");
         assert_eq!(feat.direction, Some(FeatureDirection::In));
@@ -295,8 +316,9 @@ mod tests {
             lower("package P { type T { in feature f; } feature g ~ T::f; }");
         assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
 
-        let pkg = &model.defs[model.roots[0]];
-        let g = &model.defs[pkg.children[1]];
+        let pkg_id = model.roots[0];
+        let children: Vec<DefId> = model.children(pkg_id).collect();
+        let g = &model.defs[children[1]];
         assert_eq!(g.kind, DefKind::Feature);
         assert_eq!(interner.resolve(g.name), "g");
         assert!(
@@ -316,9 +338,10 @@ mod tests {
         let (model, interner, sink) = lower("package P { type T { feature x : Integer [0..1]; } }");
         assert!(!sink.has_errors());
 
-        let pkg = &model.defs[model.roots[0]];
-        let ty = &model.defs[pkg.children[0]];
-        let feat = &model.defs[ty.children[0]];
+        let pkg_id = model.roots[0];
+        let ty_id = model.children(pkg_id).next().unwrap();
+        let feat_id = model.children(ty_id).next().unwrap();
+        let feat = &model.defs[feat_id];
         assert_eq!(feat.kind, DefKind::Feature);
         assert_eq!(interner.resolve(feat.name), "x");
         assert!(feat.type_ref.is_some());
@@ -330,13 +353,16 @@ mod tests {
 
     #[test]
     fn lower_inline_conjugated_type_ref() {
-        let (model, interner, sink) =
-            lower("package P { type T { in feature f : T; } type U { feature g : ~T; } }");
+        let (model, interner, sink) = lower(
+            "package P { type T { in feature f : T; } \
+             type U { feature g : ~T; } }",
+        );
         assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
 
-        let pkg = &model.defs[model.roots[0]];
-        let u_id = pkg.children[1];
-        let g_id = model.defs[u_id].children[0];
+        let pkg_id = model.roots[0];
+        let children: Vec<DefId> = model.children(pkg_id).collect();
+        let u_id = children[1];
+        let g_id = model.children(u_id).next().unwrap();
         let g = &model.defs[g_id];
 
         assert_eq!(interner.resolve(g.name), "g");
@@ -358,19 +384,22 @@ mod tests {
         assert_eq!(
             anon.conjugation.as_ref().unwrap().resolution,
             ResolutionState::Unresolved,
-            "conjugation target should be unresolved at lowering time"
+            "conjugation target should be unresolved"
         );
     }
 
     #[test]
     fn lower_multiplicity_with_feature_ref() {
-        let (model, interner, sink) =
-            lower("package P { type T { feature n : T; feature x : T [1..n]; } }");
+        let (model, interner, sink) = lower(
+            "package P { type T { feature n : T; \
+             feature x : T [1..n]; } }",
+        );
         assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
 
-        let pkg = &model.defs[model.roots[0]];
-        let ty = &model.defs[pkg.children[0]];
-        let x = &model.defs[ty.children[1]];
+        let pkg_id = model.roots[0];
+        let ty_id = model.children(pkg_id).next().unwrap();
+        let feats: Vec<DefId> = model.children(ty_id).collect();
+        let x = &model.defs[feats[1]];
         let mult = x.multiplicity.as_ref().expect("x should have multiplicity");
 
         assert!(
@@ -384,8 +413,8 @@ mod tests {
             mult.upper
         );
         if let MultBound::Ref(ref name_ref) = mult.upper {
-            assert_eq!(name_ref.resolution, ResolutionState::Unresolved);
-            assert_eq!(interner.resolve(name_ref.segments[0]), "n");
+            assert_eq!(name_ref.resolution, ResolutionState::Unresolved,);
+            assert_eq!(interner.resolve(name_ref.segments[0]), "n",);
         }
     }
 
@@ -393,9 +422,10 @@ mod tests {
     fn lower_multiplicity_exact_unchanged() {
         let (model, _interner, sink) = lower("package P { type T { feature x : T [0..1]; } }");
         assert!(!sink.has_errors());
-        let pkg = &model.defs[model.roots[0]];
-        let ty = &model.defs[pkg.children[0]];
-        let feat = &model.defs[ty.children[0]];
+        let pkg_id = model.roots[0];
+        let ty_id = model.children(pkg_id).next().unwrap();
+        let feat_id = model.children(ty_id).next().unwrap();
+        let feat = &model.defs[feat_id];
         let mult = feat.multiplicity.as_ref().unwrap();
         assert!(matches!(mult.lower, MultBound::Exact(0)));
         assert!(matches!(mult.upper, MultBound::Exact(1)));
@@ -405,9 +435,10 @@ mod tests {
     fn lower_multiplicity_star_unchanged() {
         let (model, _interner, sink) = lower("package P { type T { feature x : T [0..*]; } }");
         assert!(!sink.has_errors());
-        let pkg = &model.defs[model.roots[0]];
-        let ty = &model.defs[pkg.children[0]];
-        let feat = &model.defs[ty.children[0]];
+        let pkg_id = model.roots[0];
+        let ty_id = model.children(pkg_id).next().unwrap();
+        let feat_id = model.children(ty_id).next().unwrap();
+        let feat = &model.defs[feat_id];
         let mult = feat.multiplicity.as_ref().unwrap();
         assert!(matches!(mult.lower, MultBound::Exact(0)));
         assert!(matches!(mult.upper, MultBound::Unbounded));

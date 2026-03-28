@@ -1,4 +1,4 @@
-use kermlc_hir::{DefKind, FeatureDirection, InheritanceKind, SemanticModel};
+use kermlc_hir::{DefKind, FeatureDirection, SemanticModel};
 use kermlc_intern::StringInterner;
 use serde_json::{json, Value};
 
@@ -30,11 +30,10 @@ fn build_elements(model: &SemanticModel, interner: &StringInterner) -> Vec<Value
         });
 
         // Add owned members
-        if !def.children.is_empty() {
-            let member_refs: Vec<Value> = def
-                .children
-                .iter()
-                .map(|&child_id| {
+        if !def.owned_memberships.is_empty() {
+            let member_refs: Vec<Value> = model
+                .children(def_id)
+                .map(|child_id| {
                     let child = &model.defs[child_id];
                     let child_type = match child.kind {
                         DefKind::Package => "package",
@@ -90,24 +89,16 @@ fn build_elements(model: &SemanticModel, interner: &StringInterner) -> Vec<Value
         }
 
         // Add inherited features with direction info
-        if !def.inherited_features.is_empty() {
+        if !def.inherited_memberships.is_empty() {
             let inherited_refs: Vec<Value> = def
-                .inherited_features
+                .inherited_memberships
                 .iter()
-                .map(|inh| {
-                    let kind_str = match inh.kind {
-                        InheritanceKind::Specialization => "specialization",
-                        InheritanceKind::Conjugation => "conjugation",
-                    };
+                .map(|&mid| {
+                    let feat_id = model.memberships[mid].member_def;
                     let mut obj = json!({
-                        "@id": format!(
-                            "feature-{}",
-                            inh.def_id.raw()
-                        ),
-                        "inheritanceKind": kind_str,
+                        "@id": format!("feature-{}", feat_id.raw()),
                     });
-                    let effective_dir = inh.direction_override.or(model.defs[inh.def_id].direction);
-                    if let Some(dir) = effective_dir {
+                    if let Some(dir) = model.direction_of(feat_id, def_id) {
                         let dir_str = match dir {
                             FeatureDirection::In => "in",
                             FeatureDirection::Out => "out",
@@ -341,7 +332,6 @@ mod tests {
         assert_eq!(inherited.len(), 2);
 
         for inh in inherited {
-            assert_eq!(inh["inheritanceKind"], "conjugation");
             assert!(inh.get("direction").is_some());
         }
     }

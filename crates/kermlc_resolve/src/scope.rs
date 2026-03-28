@@ -97,10 +97,11 @@ pub fn find_member(model: &SemanticModel, type_def_id: DefId, name: SymbolId) ->
         return Some(found);
     }
 
-    // 2. Inherited features (populated by typeck)
-    for inherited in &model.defs[type_def_id].inherited_features {
-        if model.defs[inherited.def_id].name == name {
-            return Some(inherited.def_id);
+    // 2. Inherited memberships (populated by typeck)
+    for &mid in &model.defs[type_def_id].inherited_memberships {
+        let m = &model.memberships[mid];
+        if model.defs[m.member_def].name == name {
+            return Some(m.member_def);
         }
     }
 
@@ -132,8 +133,8 @@ mod tests {
         crate::resolve_pass(&mut model, &interner, &mut sink);
 
         let pkg = model.roots[0];
-        let t_id = model.defs[pkg].children[0];
-        let f_id = model.defs[t_id].children[0];
+        let t_id = model.children(pkg).next().unwrap();
+        let f_id = model.children(t_id).next().unwrap();
         let f_name = model.defs[f_id].name;
 
         let found = find_member(&model, t_id, f_name);
@@ -146,7 +147,7 @@ mod tests {
             parse_and_lower("package P { type T { feature f : T; } }");
 
         let pkg = model.roots[0];
-        let t_id = model.defs[pkg].children[0];
+        let t_id = model.children(pkg).next().unwrap();
         let bad_name = interner.intern("nonexistent");
 
         let found = find_member(&model, t_id, bad_name);
@@ -166,10 +167,10 @@ mod tests {
         }
 
         let pkg = model.roots[0];
-        let a_id = model.defs[pkg].children[0];
-        let x_id = model.defs[a_id].children[0];
+        let a_id = model.children(pkg).next().unwrap();
+        let x_id = model.children(a_id).next().unwrap();
         let x_name = model.defs[x_id].name;
-        let b_id = model.defs[pkg].children[1];
+        let b_id = model.children(pkg).nth(1).unwrap();
 
         let found = find_member(&model, b_id, x_name);
         assert_eq!(found, Some(x_id));
@@ -181,7 +182,7 @@ mod tests {
             parse_and_lower("package P { type T {} feature outside : T; }");
 
         let pkg = model.roots[0];
-        let t_id = model.defs[pkg].children[0];
+        let t_id = model.children(pkg).next().unwrap();
         let outside_name = interner.intern("outside");
 
         let found = find_member(&model, t_id, outside_name);

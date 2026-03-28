@@ -1,7 +1,6 @@
 use kermlc_diagnostics::{DiagnosticSink, SourceMap};
 use kermlc_hir::{
-    add_implicit_specializations, load_stdlib, lower_ast, FeatureDirection, InheritanceKind,
-    SemanticModel,
+    add_implicit_specializations, load_stdlib, lower_ast, FeatureDirection, SemanticModel,
 };
 use kermlc_intern::StringInterner;
 use kermlc_resolve::{detect_specialization_cycles, emit_unresolved_errors, resolve_pass};
@@ -94,40 +93,28 @@ fn valid_conjugation() {
 
     // Find Sink type and verify inherited features
     let pkg = result.model.roots[0];
-    let sink_id = result.model.defs[pkg]
-        .children
-        .iter()
-        .find(|&&c| result.interner.resolve(result.model.defs[c].name) == "Sink")
-        .copied()
+    let sink_id = result
+        .model
+        .children(pkg)
+        .find(|&c| result.interner.resolve(result.model.defs[c].name) == "Sink")
         .expect("Sink type not found");
 
     let sink_def = &result.model.defs[sink_id];
     assert_eq!(
-        sink_def.inherited_features.len(),
+        sink_def.inherited_memberships.len(),
         4,
         "Sink should inherit 4 features from Source"
     );
 
-    for inh in &sink_def.inherited_features {
-        assert_eq!(inh.kind, InheritanceKind::Conjugation);
-        let feat_name = result.interner.resolve(result.model.defs[inh.def_id].name);
+    for &mid in &sink_def.inherited_memberships {
+        let feat_id = result.model.memberships[mid].member_def;
+        let feat_name = result.interner.resolve(result.model.defs[feat_id].name);
+        let dir = result.model.direction_of(feat_id, sink_id);
         match feat_name {
-            "input" => assert_eq!(
-                inh.direction_override,
-                Some(FeatureDirection::Out),
-                "in should flip to out"
-            ),
-            "output" => assert_eq!(
-                inh.direction_override,
-                Some(FeatureDirection::In),
-                "out should flip to in"
-            ),
-            "control" => assert_eq!(
-                inh.direction_override,
-                Some(FeatureDirection::InOut),
-                "inout stays inout"
-            ),
-            "data" => assert_eq!(inh.direction_override, None, "no direction stays None"),
+            "input" => assert_eq!(dir, Some(FeatureDirection::Out), "in should flip to out"),
+            "output" => assert_eq!(dir, Some(FeatureDirection::In), "out should flip to in"),
+            "control" => assert_eq!(dir, Some(FeatureDirection::InOut), "inout stays inout"),
+            "data" => assert_eq!(dir, None, "no direction stays None"),
             other => panic!("unexpected feature: {other}"),
         }
     }
@@ -143,14 +130,13 @@ fn valid_conjugation_chained() {
     );
 
     let pkg = result.model.roots[0];
-    let children = &result.model.defs[pkg].children;
 
     // Find B and C by name
     let find_type = |name: &str| {
-        children
-            .iter()
-            .find(|&&c| result.interner.resolve(result.model.defs[c].name) == name)
-            .copied()
+        result
+            .model
+            .children(pkg)
+            .find(|&c| result.interner.resolve(result.model.defs[c].name) == name)
             .unwrap_or_else(|| panic!("{name} not found"))
     };
     let b_id = find_type("B");
@@ -158,17 +144,19 @@ fn valid_conjugation_chained() {
 
     // B conjugates A: in->out, out->in
     let b_def = &result.model.defs[b_id];
-    assert_eq!(b_def.inherited_features.len(), 2);
-    for inh in &b_def.inherited_features {
-        let name = result.interner.resolve(result.model.defs[inh.def_id].name);
+    assert_eq!(b_def.inherited_memberships.len(), 2);
+    for &mid in &b_def.inherited_memberships {
+        let feat_id = result.model.memberships[mid].member_def;
+        let name = result.interner.resolve(result.model.defs[feat_id].name);
+        let dir = result.model.direction_of(feat_id, b_id);
         match name {
             "f" => assert_eq!(
-                inh.direction_override,
+                dir,
                 Some(FeatureDirection::Out),
                 "B.f: in should flip to out"
             ),
             "g" => assert_eq!(
-                inh.direction_override,
+                dir,
                 Some(FeatureDirection::In),
                 "B.g: out should flip to in"
             ),
@@ -178,17 +166,19 @@ fn valid_conjugation_chained() {
 
     // C conjugates B: double flip back to original
     let c_def = &result.model.defs[c_id];
-    assert_eq!(c_def.inherited_features.len(), 2);
-    for inh in &c_def.inherited_features {
-        let name = result.interner.resolve(result.model.defs[inh.def_id].name);
+    assert_eq!(c_def.inherited_memberships.len(), 2);
+    for &mid in &c_def.inherited_memberships {
+        let feat_id = result.model.memberships[mid].member_def;
+        let name = result.interner.resolve(result.model.defs[feat_id].name);
+        let dir = result.model.direction_of(feat_id, c_id);
         match name {
             "f" => assert_eq!(
-                inh.direction_override,
+                dir,
                 Some(FeatureDirection::In),
                 "C.f: double flip back to in"
             ),
             "g" => assert_eq!(
-                inh.direction_override,
+                dir,
                 Some(FeatureDirection::Out),
                 "C.g: double flip back to out"
             ),
@@ -208,50 +198,37 @@ fn valid_conjugation_named() {
 
     // Find Sink type and verify inherited features
     let pkg = result.model.roots[0];
-    let sink_id = result.model.defs[pkg]
-        .children
-        .iter()
-        .find(|&&c| result.interner.resolve(result.model.defs[c].name) == "Sink")
-        .copied()
+    let sink_id = result
+        .model
+        .children(pkg)
+        .find(|&c| result.interner.resolve(result.model.defs[c].name) == "Sink")
         .expect("Sink type not found");
 
     let sink_def = &result.model.defs[sink_id];
     assert_eq!(
-        sink_def.inherited_features.len(),
+        sink_def.inherited_memberships.len(),
         4,
         "Sink should inherit 4 features from Source via named conjugation"
     );
 
-    for inh in &sink_def.inherited_features {
-        assert_eq!(inh.kind, InheritanceKind::Conjugation);
-        let feat_name = result.interner.resolve(result.model.defs[inh.def_id].name);
+    for &mid in &sink_def.inherited_memberships {
+        let feat_id = result.model.memberships[mid].member_def;
+        let feat_name = result.interner.resolve(result.model.defs[feat_id].name);
+        let dir = result.model.direction_of(feat_id, sink_id);
         match feat_name {
-            "input" => assert_eq!(
-                inh.direction_override,
-                Some(FeatureDirection::Out),
-                "in should flip to out"
-            ),
-            "output" => assert_eq!(
-                inh.direction_override,
-                Some(FeatureDirection::In),
-                "out should flip to in"
-            ),
-            "control" => assert_eq!(
-                inh.direction_override,
-                Some(FeatureDirection::InOut),
-                "inout stays inout"
-            ),
-            "data" => assert_eq!(inh.direction_override, None, "no direction stays None"),
+            "input" => assert_eq!(dir, Some(FeatureDirection::Out), "in should flip to out"),
+            "output" => assert_eq!(dir, Some(FeatureDirection::In), "out should flip to in"),
+            "control" => assert_eq!(dir, Some(FeatureDirection::InOut), "inout stays inout"),
+            "data" => assert_eq!(dir, None, "no direction stays None"),
             other => panic!("unexpected feature: {other}"),
         }
     }
 
     // Verify the conjugation def itself exists
-    let conj_id = result.model.defs[pkg]
-        .children
-        .iter()
-        .find(|&&c| result.interner.resolve(result.model.defs[c].name) == "c1")
-        .copied()
+    let conj_id = result
+        .model
+        .children(pkg)
+        .find(|&c| result.interner.resolve(result.model.defs[c].name) == "c1")
         .expect("conjugation c1 not found");
     assert_eq!(
         result.model.defs[conj_id].kind,
@@ -269,13 +246,12 @@ fn valid_feature_conjugation() {
     );
 
     let pkg = result.model.roots[0];
-    let children = &result.model.defs[pkg].children;
 
     // Find feature g (top-level feature in package, after Source type)
-    let g_id = children
-        .iter()
-        .find(|&&c| result.interner.resolve(result.model.defs[c].name) == "g")
-        .copied()
+    let g_id = result
+        .model
+        .children(pkg)
+        .find(|&c| result.interner.resolve(result.model.defs[c].name) == "g")
         .expect("feature g not found");
 
     let g_def = &result.model.defs[g_id];
@@ -287,19 +263,17 @@ fn valid_feature_conjugation() {
     );
 
     // Find Tanks type
-    let tanks_id = children
-        .iter()
-        .find(|&&c| result.interner.resolve(result.model.defs[c].name) == "Tanks")
-        .copied()
+    let tanks_id = result
+        .model
+        .children(pkg)
+        .find(|&c| result.interner.resolve(result.model.defs[c].name) == "Tanks")
         .expect("Tanks type not found");
 
-    let tanks_children = &result.model.defs[tanks_id].children;
-
     // Find fuelOutPort
-    let out_port_id = tanks_children
-        .iter()
-        .find(|&&c| result.interner.resolve(result.model.defs[c].name) == "fuelOutPort")
-        .copied()
+    let out_port_id = result
+        .model
+        .children(tanks_id)
+        .find(|&c| result.interner.resolve(result.model.defs[c].name) == "fuelOutPort")
         .expect("fuelOutPort not found");
 
     let out_port = &result.model.defs[out_port_id];
@@ -323,21 +297,19 @@ fn valid_inline_conjugation() {
     );
 
     let pkg = result.model.roots[0];
-    let children = &result.model.defs[pkg].children;
 
     // Find Wrapper type
-    let wrapper_id = children
-        .iter()
-        .find(|&&c| result.interner.resolve(result.model.defs[c].name) == "Wrapper")
-        .copied()
+    let wrapper_id = result
+        .model
+        .children(pkg)
+        .find(|&c| result.interner.resolve(result.model.defs[c].name) == "Wrapper")
         .expect("Wrapper not found");
 
     // Find feature port inside Wrapper
-    let port_id = result.model.defs[wrapper_id]
-        .children
-        .iter()
-        .find(|&&c| result.interner.resolve(result.model.defs[c].name) == "port")
-        .copied()
+    let port_id = result
+        .model
+        .children(wrapper_id)
+        .find(|&c| result.interner.resolve(result.model.defs[c].name) == "port")
         .expect("port feature not found");
 
     let port = &result.model.defs[port_id];
@@ -354,34 +326,23 @@ fn valid_inline_conjugation() {
         "anonymous type name should start with ~"
     );
 
-    // Anonymous type should have inherited features with flipped
+    // Anonymous type should have inherited memberships with flipped
     // directions
     assert_eq!(
-        anon.inherited_features.len(),
+        anon.inherited_memberships.len(),
         4,
         "~Source should inherit 4 features"
     );
 
-    for inh in &anon.inherited_features {
-        assert_eq!(inh.kind, InheritanceKind::Conjugation);
-        let feat_name = result.interner.resolve(result.model.defs[inh.def_id].name);
+    for &mid in &anon.inherited_memberships {
+        let feat_id = result.model.memberships[mid].member_def;
+        let feat_name = result.interner.resolve(result.model.defs[feat_id].name);
+        let dir = result.model.direction_of(feat_id, anon_id);
         match feat_name {
-            "input" => assert_eq!(
-                inh.direction_override,
-                Some(FeatureDirection::Out),
-                "in should flip to out"
-            ),
-            "output" => assert_eq!(
-                inh.direction_override,
-                Some(FeatureDirection::In),
-                "out should flip to in"
-            ),
-            "control" => assert_eq!(
-                inh.direction_override,
-                Some(FeatureDirection::InOut),
-                "inout stays inout"
-            ),
-            "data" => assert_eq!(inh.direction_override, None, "no direction stays None"),
+            "input" => assert_eq!(dir, Some(FeatureDirection::Out), "in should flip to out"),
+            "output" => assert_eq!(dir, Some(FeatureDirection::In), "out should flip to in"),
+            "control" => assert_eq!(dir, Some(FeatureDirection::InOut), "inout stays inout"),
+            "data" => assert_eq!(dir, None, "no direction stays None"),
             other => panic!("unexpected feature: {other}"),
         }
     }
@@ -428,8 +389,8 @@ fn valid_multiplicity_feature_ref() {
 
     // Verify the multiplicity ref resolved
     let pkg = result.model.roots[0];
-    let conn_id = result.model.defs[pkg].children[0];
-    let ports_id = result.model.defs[conn_id].children[1];
+    let conn_id = result.model.children(pkg).next().unwrap();
+    let ports_id = result.model.children(conn_id).nth(1).unwrap();
     let mult = result.model.defs[ports_id]
         .multiplicity
         .as_ref()
@@ -447,6 +408,41 @@ fn valid_multiplicity_feature_ref() {
     } else {
         panic!("upper bound should be MultBound::Ref");
     }
+}
+
+#[test]
+fn valid_visibility() {
+    let result = compile_file(&fixtures_dir().join("valid/visibility.kerml"));
+    assert!(
+        !result.sink.has_errors(),
+        "Errors in visibility.kerml: {:?}",
+        result.sink.diagnostics()
+    );
+
+    let pkg = result.model.roots[0];
+    let sub_id = result.model.children(pkg).nth(1).unwrap();
+    assert_eq!(
+        result.interner.resolve(result.model.defs[sub_id].name),
+        "Sub"
+    );
+
+    // Sub should inherit pub_feat and prot_feat but not priv_feat
+    assert_eq!(
+        result.model.defs[sub_id].inherited_memberships.len(),
+        2,
+        "Sub should inherit 2 features (public + protected), not private"
+    );
+
+    let sub_sub_id = result.model.children(pkg).nth(2).unwrap();
+    assert_eq!(
+        result.interner.resolve(result.model.defs[sub_sub_id].name),
+        "SubSub"
+    );
+    assert_eq!(
+        result.model.defs[sub_sub_id].inherited_memberships.len(),
+        2,
+        "SubSub should transitively inherit 2 features"
+    );
 }
 
 // ── Invalid fixture tests ────────────────────────────────────────────
@@ -550,9 +546,9 @@ fn specialization_chain_inherits_features() {
 
     // Verify C inherits from the chain
     let pkg = result.model.roots[0];
-    let c_id = result.model.defs[pkg].children[2];
+    let c_id = result.model.children(pkg).nth(2).unwrap();
     assert!(
-        !result.model.defs[c_id].inherited_features.is_empty(),
+        !result.model.defs[c_id].inherited_memberships.is_empty(),
         "C should inherit features through specialization chain A -> B -> C"
     );
 }

@@ -75,13 +75,11 @@ fn validate_type(
     // Warn when conjugation target has no features
     if let Some(conj) = &def.conjugation {
         if let Some(target_id) = conj.resolved_def() {
-            let target = &model.defs[target_id];
-            let has_features = target
-                .children
-                .iter()
-                .any(|c| model.defs[*c].kind == DefKind::Feature);
+            let has_features = model
+                .children(target_id)
+                .any(|c| model.defs[c].kind == DefKind::Feature);
             if !has_features {
-                let name = interner.resolve(target.name);
+                let name = interner.resolve(model.defs[target_id].name);
                 sink.emit(
                     Diagnostic::warning(format!(
                         "conjugation target `{name}` has no \
@@ -97,11 +95,9 @@ fn validate_type(
     }
 
     // Check for duplicate feature names among own children
-    let own_features: Vec<DefId> = def
-        .children
-        .iter()
-        .filter(|&&c| model.defs[c].kind == DefKind::Feature)
-        .copied()
+    let own_features: Vec<DefId> = model
+        .children(def_id)
+        .filter(|&c| model.defs[c].kind == DefKind::Feature)
         .collect();
 
     for i in 0..own_features.len() {
@@ -175,13 +171,11 @@ fn validate_conjugation_decl(
 
     // Warn if original type has no features
     if let Some(orig_id) = orig_ref.resolved_def() {
-        let orig = &model.defs[orig_id];
-        let has_features = orig
-            .children
-            .iter()
-            .any(|c| model.defs[*c].kind == DefKind::Feature);
+        let has_features = model
+            .children(orig_id)
+            .any(|c| model.defs[c].kind == DefKind::Feature);
         if !has_features {
-            let name = interner.resolve(orig.name);
+            let name = interner.resolve(model.defs[orig_id].name);
             sink.emit(
                 Diagnostic::warning(format!(
                     "original type `{name}` has no features; \
@@ -257,20 +251,12 @@ fn validate_feature(
 
     // Check multiplicity consistency with redefined inherited feature
     if let Some(parent_id) = def.parent {
-        let parent = &model.defs[parent_id];
-        if parent.kind == DefKind::Type {
-            // Check if this feature redefines an inherited one
-            for inherited_feat in &parent.inherited_features {
-                let inherited = &model.defs[inherited_feat.def_id];
-                if inherited.name == def.name {
-                    // This feature redefines an inherited feature
-                    validate_redefinition_multiplicity(
-                        model,
-                        interner,
-                        def_id,
-                        inherited_feat.def_id,
-                        sink,
-                    );
+        let parent_def = &model.defs[parent_id];
+        if parent_def.kind == DefKind::Type {
+            for &mid in &parent_def.inherited_memberships {
+                let inherited_id = model.memberships[mid].member_def;
+                if model.defs[inherited_id].name == def.name {
+                    validate_redefinition_multiplicity(model, interner, def_id, inherited_id, sink);
                 }
             }
         }

@@ -148,6 +148,10 @@ impl<'a> Lexer<'a> {
                     "in" => TokenKind::In,
                     "out" => TokenKind::Out,
                     "inout" => TokenKind::InOut,
+                    "public" => TokenKind::Public,
+                    "private" => TokenKind::Private,
+                    "protected" => TokenKind::Protected,
+                    "member" => TokenKind::Member,
                     _ => TokenKind::Ident,
                 }
             }
@@ -297,6 +301,20 @@ mod tests {
                 (TokenKind::In, "in"),
                 (TokenKind::Out, "out"),
                 (TokenKind::InOut, "inout"),
+            ]
+        );
+    }
+
+    #[test]
+    fn lex_visibility_keywords() {
+        let tokens = lex("public private protected member");
+        assert_eq!(
+            tokens,
+            vec![
+                (TokenKind::Public, "public"),
+                (TokenKind::Private, "private"),
+                (TokenKind::Protected, "protected"),
+                (TokenKind::Member, "member"),
             ]
         );
     }

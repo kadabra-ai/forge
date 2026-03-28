@@ -14,6 +14,23 @@ pub struct QualifiedName {
     pub span: Span,
 }
 
+/// Visibility modifier for a member or import.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Visibility {
+    Public,
+    Protected,
+    Private,
+}
+
+/// A member with optional visibility and member-only flag.
+#[derive(Clone, Debug)]
+pub struct MemberEntry {
+    pub visibility: Option<Visibility>,
+    pub is_member_only: bool,
+    pub member: Member,
+    pub span: Span,
+}
+
 /// A member of a package or type body.
 #[derive(Clone, Debug)]
 pub enum Member {
@@ -29,12 +46,13 @@ pub struct PackageDecl {
     pub name: SymbolId,
     pub span: Span,
     pub imports: Vec<ImportDecl>,
-    pub members: Vec<Member>,
+    pub members: Vec<MemberEntry>,
 }
 
 /// `import Foo::Bar::*;`
 #[derive(Clone, Debug)]
 pub struct ImportDecl {
+    pub visibility: Option<Visibility>,
     pub path: QualifiedName,
     pub is_wildcard: bool,
     pub span: Span,
@@ -47,7 +65,7 @@ pub struct TypeDecl {
     pub span: Span,
     pub specializations: Vec<QualifiedName>,
     pub conjugation: Option<QualifiedName>,
-    pub members: Vec<Member>,
+    pub members: Vec<MemberEntry>,
 }
 
 /// Multiplicity like `[0..1]` or `[*]`
@@ -140,7 +158,7 @@ pub enum BinOpKind {
 #[derive(Clone, Debug)]
 pub struct SourceFile {
     pub packages: Vec<PackageId>,
-    pub members: Vec<Member>, // top-level members outside packages
+    pub members: Vec<MemberEntry>, // top-level members outside packages
     pub span: Span,
 }
 

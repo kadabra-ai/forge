@@ -66,25 +66,51 @@ impl<'a> Parser<'a> {
 
         while !parser.at(TokenKind::Eof) {
             let before = parser.pos;
+            let member_start = parser.current_span();
+            let (vis, is_member) = parser.parse_member_prefix();
             match parser.peek() {
                 TokenKind::Package => {
+                    if vis.is_some() {
+                        parser.sink.emit(
+                            Diagnostic::warning("visibility on top-level package has no effect")
+                                .with_label(Label::primary(
+                                    member_start,
+                                    "top-level declarations are implicitly private",
+                                )),
+                        );
+                    }
                     if let Some(id) = parser.parse_package() {
                         top_packages.push(id);
                     }
                 }
                 TokenKind::Type => {
                     if let Some(id) = parser.parse_type_decl() {
-                        top_members.push(Member::Type(id));
+                        top_members.push(parser.make_member_entry(
+                            vis,
+                            is_member,
+                            Member::Type(id),
+                            member_start,
+                        ));
                     }
                 }
                 TokenKind::Feature | TokenKind::In | TokenKind::Out | TokenKind::InOut => {
                     if let Some(id) = parser.parse_feature_decl() {
-                        top_members.push(Member::Feature(id));
+                        top_members.push(parser.make_member_entry(
+                            vis,
+                            is_member,
+                            Member::Feature(id),
+                            member_start,
+                        ));
                     }
                 }
                 TokenKind::Conjugation => {
                     if let Some(id) = parser.parse_conjugation_decl() {
-                        top_members.push(Member::Conjugation(id));
+                        top_members.push(parser.make_member_entry(
+                            vis,
+                            is_member,
+                            Member::Conjugation(id),
+                            member_start,
+                        ));
                     }
                 }
                 TokenKind::Import => {
@@ -188,7 +214,11 @@ impl<'a> Parser<'a> {
                 | TokenKind::Conjugation
                 | TokenKind::In
                 | TokenKind::Out
-                | TokenKind::InOut => break,
+                | TokenKind::InOut
+                | TokenKind::Public
+                | TokenKind::Private
+                | TokenKind::Protected
+                | TokenKind::Member => break,
                 TokenKind::RBrace => {
                     self.bump();
                     break;
@@ -201,6 +231,46 @@ impl<'a> Parser<'a> {
                     self.bump();
                 }
             }
+        }
+    }
+
+    fn parse_member_prefix(&mut self) -> (Option<Visibility>, bool) {
+        let visibility = match self.peek() {
+            TokenKind::Public => {
+                self.bump();
+                Some(Visibility::Public)
+            }
+            TokenKind::Private => {
+                self.bump();
+                Some(Visibility::Private)
+            }
+            TokenKind::Protected => {
+                self.bump();
+                Some(Visibility::Protected)
+            }
+            _ => None,
+        };
+        let is_member_only = if self.at(TokenKind::Member) {
+            self.bump();
+            true
+        } else {
+            false
+        };
+        (visibility, is_member_only)
+    }
+
+    fn make_member_entry(
+        &self,
+        vis: Option<Visibility>,
+        is_member: bool,
+        member: Member,
+        start: Span,
+    ) -> MemberEntry {
+        MemberEntry {
+            visibility: vis,
+            is_member_only: is_member,
+            member,
+            span: Span::new(start.file, start.start, self.current_span().end),
         }
     }
 
@@ -228,30 +298,52 @@ impl<'a> Parser<'a> {
 
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             let before = self.pos;
+            let member_start = self.current_span();
+            let (vis, is_member) = self.parse_member_prefix();
             match self.peek() {
                 TokenKind::Import => {
-                    if let Some(import) = self.parse_import() {
+                    if let Some(import) = self.parse_import_with_vis(vis) {
                         imports.push(import);
                     }
                 }
                 TokenKind::Package => {
                     if let Some(id) = self.parse_package() {
-                        members.push(Member::Package(id));
+                        members.push(self.make_member_entry(
+                            vis,
+                            is_member,
+                            Member::Package(id),
+                            member_start,
+                        ));
                     }
                 }
                 TokenKind::Type => {
                     if let Some(id) = self.parse_type_decl() {
-                        members.push(Member::Type(id));
+                        members.push(self.make_member_entry(
+                            vis,
+                            is_member,
+                            Member::Type(id),
+                            member_start,
+                        ));
                     }
                 }
                 TokenKind::Feature | TokenKind::In | TokenKind::Out | TokenKind::InOut => {
                     if let Some(id) = self.parse_feature_decl() {
-                        members.push(Member::Feature(id));
+                        members.push(self.make_member_entry(
+                            vis,
+                            is_member,
+                            Member::Feature(id),
+                            member_start,
+                        ));
                     }
                 }
                 TokenKind::Conjugation => {
                     if let Some(id) = self.parse_conjugation_decl() {
-                        members.push(Member::Conjugation(id));
+                        members.push(self.make_member_entry(
+                            vis,
+                            is_member,
+                            Member::Conjugation(id),
+                            member_start,
+                        ));
                     }
                 }
                 _ => {
@@ -284,7 +376,7 @@ impl<'a> Parser<'a> {
         }))
     }
 
-    fn parse_import(&mut self) -> Option<ImportDecl> {
+    fn parse_import_with_vis(&mut self, visibility: Option<Visibility>) -> Option<ImportDecl> {
         let start = self.current_span();
         self.expect(TokenKind::Import)?;
 
@@ -309,6 +401,7 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::Semicolon);
 
         Some(ImportDecl {
+            visibility,
             path,
             is_wildcard,
             span: Span::new(start.file, start.start, end.end),
@@ -357,20 +450,37 @@ impl<'a> Parser<'a> {
             self.bump();
             while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
                 let before = self.pos;
+                let member_start = self.current_span();
+                let (vis, is_member) = self.parse_member_prefix();
                 match self.peek() {
                     TokenKind::Type => {
                         if let Some(id) = self.parse_type_decl() {
-                            members.push(Member::Type(id));
+                            members.push(self.make_member_entry(
+                                vis,
+                                is_member,
+                                Member::Type(id),
+                                member_start,
+                            ));
                         }
                     }
                     TokenKind::Feature | TokenKind::In | TokenKind::Out | TokenKind::InOut => {
                         if let Some(id) = self.parse_feature_decl() {
-                            members.push(Member::Feature(id));
+                            members.push(self.make_member_entry(
+                                vis,
+                                is_member,
+                                Member::Feature(id),
+                                member_start,
+                            ));
                         }
                     }
                     TokenKind::Conjugation => {
                         if let Some(id) = self.parse_conjugation_decl() {
-                            members.push(Member::Conjugation(id));
+                            members.push(self.make_member_entry(
+                                vis,
+                                is_member,
+                                Member::Conjugation(id),
+                                member_start,
+                            ));
                         }
                     }
                     _ => {
@@ -691,11 +801,11 @@ mod tests {
         let (result, _interner, sink) = parse("package P { type T { in feature f : Tp; } }");
         assert!(!sink.has_errors());
         let pkg = &result.packages[result.source_file.packages[0]];
-        let Member::Type(ty_id) = &pkg.members[0] else {
+        let Member::Type(ty_id) = &pkg.members[0].member else {
             panic!("expected type member");
         };
         let ty = &result.types[*ty_id];
-        let Member::Feature(feat_id) = &ty.members[0] else {
+        let Member::Feature(feat_id) = &ty.members[0].member else {
             panic!("expected feature member");
         };
         let feat = &result.features[*feat_id];
@@ -707,11 +817,11 @@ mod tests {
         let (result, _interner, sink) = parse("package P { type T { out feature g : Tp; } }");
         assert!(!sink.has_errors());
         let pkg = &result.packages[result.source_file.packages[0]];
-        let Member::Type(ty_id) = &pkg.members[0] else {
+        let Member::Type(ty_id) = &pkg.members[0].member else {
             panic!("expected type member");
         };
         let ty = &result.types[*ty_id];
-        let Member::Feature(feat_id) = &ty.members[0] else {
+        let Member::Feature(feat_id) = &ty.members[0].member else {
             panic!("expected feature member");
         };
         let feat = &result.features[*feat_id];
@@ -723,11 +833,11 @@ mod tests {
         let (result, _interner, sink) = parse("package P { type T { inout feature h : Tp; } }");
         assert!(!sink.has_errors());
         let pkg = &result.packages[result.source_file.packages[0]];
-        let Member::Type(ty_id) = &pkg.members[0] else {
+        let Member::Type(ty_id) = &pkg.members[0].member else {
             panic!("expected type member");
         };
         let ty = &result.types[*ty_id];
-        let Member::Feature(feat_id) = &ty.members[0] else {
+        let Member::Feature(feat_id) = &ty.members[0].member else {
             panic!("expected feature member");
         };
         let feat = &result.features[*feat_id];
@@ -739,11 +849,11 @@ mod tests {
         let (result, _interner, sink) = parse("package P { type T { feature x : Tp; } }");
         assert!(!sink.has_errors());
         let pkg = &result.packages[result.source_file.packages[0]];
-        let Member::Type(ty_id) = &pkg.members[0] else {
+        let Member::Type(ty_id) = &pkg.members[0].member else {
             panic!("expected type member");
         };
         let ty = &result.types[*ty_id];
-        let Member::Feature(feat_id) = &ty.members[0] else {
+        let Member::Feature(feat_id) = &ty.members[0].member else {
             panic!("expected feature member");
         };
         let feat = &result.features[*feat_id];
@@ -764,11 +874,11 @@ mod tests {
         let (result, interner, sink) = parse("package P { type T { feature g ~ T; } }");
         assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
         let pkg = &result.packages[result.source_file.packages[0]];
-        let Member::Type(ty_id) = &pkg.members[0] else {
+        let Member::Type(ty_id) = &pkg.members[0].member else {
             panic!("expected type member");
         };
         let ty = &result.types[*ty_id];
-        let Member::Feature(feat_id) = &ty.members[0] else {
+        let Member::Feature(feat_id) = &ty.members[0].member else {
             panic!("expected feature member");
         };
         let feat = &result.features[*feat_id];
@@ -782,11 +892,11 @@ mod tests {
         let (result, _interner, sink) = parse("package P { type T { feature g conjugates T; } }");
         assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
         let pkg = &result.packages[result.source_file.packages[0]];
-        let Member::Type(ty_id) = &pkg.members[0] else {
+        let Member::Type(ty_id) = &pkg.members[0].member else {
             panic!("expected type member");
         };
         let ty = &result.types[*ty_id];
-        let Member::Feature(feat_id) = &ty.members[0] else {
+        let Member::Feature(feat_id) = &ty.members[0].member else {
             panic!("expected feature member");
         };
         let feat = &result.features[*feat_id];
@@ -798,11 +908,11 @@ mod tests {
         let (result, _interner, sink) = parse("package P { type T { feature g ~ A::f; } }");
         assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
         let pkg = &result.packages[result.source_file.packages[0]];
-        let Member::Type(ty_id) = &pkg.members[0] else {
+        let Member::Type(ty_id) = &pkg.members[0].member else {
             panic!("expected type member");
         };
         let ty = &result.types[*ty_id];
-        let Member::Feature(feat_id) = &ty.members[0] else {
+        let Member::Feature(feat_id) = &ty.members[0].member else {
             panic!("expected feature member");
         };
         let feat = &result.features[*feat_id];
@@ -815,11 +925,11 @@ mod tests {
         let (result, interner, sink) = parse("package P { type T { feature f : ~T; } }");
         assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
         let pkg = &result.packages[result.source_file.packages[0]];
-        let Member::Type(ty_id) = &pkg.members[0] else {
+        let Member::Type(ty_id) = &pkg.members[0].member else {
             panic!("expected type member");
         };
         let ty = &result.types[*ty_id];
-        let Member::Feature(feat_id) = &ty.members[0] else {
+        let Member::Feature(feat_id) = &ty.members[0].member else {
             panic!("expected feature member");
         };
         let feat = &result.features[*feat_id];
@@ -843,11 +953,11 @@ mod tests {
         let (result, interner, sink) = parse("package P { type T { feature f : ~A::B; } }");
         assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
         let pkg = &result.packages[result.source_file.packages[0]];
-        let Member::Type(ty_id) = &pkg.members[0] else {
+        let Member::Type(ty_id) = &pkg.members[0].member else {
             panic!("expected type member");
         };
         let ty = &result.types[*ty_id];
-        let Member::Feature(feat_id) = &ty.members[0] else {
+        let Member::Feature(feat_id) = &ty.members[0].member else {
             panic!("expected feature member");
         };
         let feat = &result.features[*feat_id];
@@ -866,8 +976,8 @@ mod tests {
         let (result, _interner, sink) = parse("package P { type T { feature x : T [n]; } }");
         assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
         let pkg = &result.packages[result.source_file.packages[0]];
-        let feat_id = match &pkg.members[0] {
-            Member::Type(id) => match &result.types[*id].members[0] {
+        let feat_id = match &pkg.members[0].member {
+            Member::Type(id) => match &result.types[*id].members[0].member {
                 Member::Feature(fid) => *fid,
                 _ => panic!("expected feature"),
             },
@@ -905,5 +1015,46 @@ mod tests {
         let (_result, _interner, sink) =
             parse("package P { type T { feature x : T [Pkg::count]; } }");
         assert!(!sink.has_errors(), "errors: {:?}", sink.diagnostics());
+    }
+
+    #[test]
+    fn parse_visibility_on_feature() {
+        let (result, _, sink) = parse("package P { type T { private feature x : T; } }");
+        assert!(!sink.has_errors(), "{:?}", sink.diagnostics());
+        let pkg = &result.packages[result.source_file.packages[0]];
+        let Member::Type(ty_id) = &pkg.members[0].member else {
+            panic!("expected type");
+        };
+        let ty = &result.types[*ty_id];
+        assert_eq!(ty.members[0].visibility, Some(Visibility::Private));
+    }
+
+    #[test]
+    fn parse_member_keyword_on_feature() {
+        let (result, _, sink) = parse("package P { type T { member feature x : T; } }");
+        assert!(!sink.has_errors(), "{:?}", sink.diagnostics());
+        let pkg = &result.packages[result.source_file.packages[0]];
+        let Member::Type(ty_id) = &pkg.members[0].member else {
+            panic!("expected type");
+        };
+        let ty = &result.types[*ty_id];
+        assert!(ty.members[0].is_member_only);
+    }
+
+    #[test]
+    fn parse_default_visibility_is_none() {
+        let (result, _, sink) = parse("package P { type T {} }");
+        assert!(!sink.has_errors());
+        let pkg = &result.packages[result.source_file.packages[0]];
+        assert_eq!(pkg.members[0].visibility, None);
+        assert!(!pkg.members[0].is_member_only);
+    }
+
+    #[test]
+    fn parse_protected_type() {
+        let (result, _, sink) = parse("package P { protected type T {} }");
+        assert!(!sink.has_errors(), "{:?}", sink.diagnostics());
+        let pkg = &result.packages[result.source_file.packages[0]];
+        assert_eq!(pkg.members[0].visibility, Some(Visibility::Protected));
     }
 }

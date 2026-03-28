@@ -488,7 +488,7 @@ mod tests {
 
         // Find B's specialization
         let pkg = model.roots[0];
-        let b_id = model.defs[pkg].children[1];
+        let b_id = model.children(pkg).nth(1).unwrap();
         assert!(model.defs[b_id].specializations[0].is_resolved());
     }
 
@@ -503,7 +503,7 @@ mod tests {
 
         // Find Y in package B
         let b_pkg = model.roots[1];
-        let y_id = model.defs[b_pkg].children[0];
+        let y_id = model.children(b_pkg).next().unwrap();
         assert!(model.defs[y_id].specializations[0].is_resolved());
     }
 
@@ -518,7 +518,7 @@ mod tests {
         resolve_pass(&mut model, &interner, &mut sink);
 
         let b_pkg = model.roots[1];
-        let y_id = model.defs[b_pkg].children[0];
+        let y_id = model.children(b_pkg).next().unwrap();
         assert!(
             model.defs[y_id].specializations[0].is_resolved(),
             "Y's specialization of X should resolve via import"
@@ -535,7 +535,7 @@ mod tests {
 
         // Should still be unresolved
         let pkg = model.roots[0];
-        let a_id = model.defs[pkg].children[0];
+        let a_id = model.children(pkg).next().unwrap();
         assert!(!model.defs[a_id].specializations[0].is_resolved());
 
         // Emit errors for unresolved names
@@ -605,8 +605,8 @@ mod tests {
         resolve_pass(&mut model, &interner, &mut sink);
 
         let pkg = model.roots[0];
-        let ty = model.defs[pkg].children[0];
-        let x_id = model.defs[ty].children[1];
+        let ty = model.children(pkg).next().unwrap();
+        let x_id = model.children(ty).nth(1).unwrap();
         let mult = model.defs[x_id]
             .multiplicity
             .as_ref()
@@ -676,8 +676,8 @@ mod tests {
         );
 
         let pkg = model.roots[0];
-        let fleet = model.defs[pkg].children[2]; // Fleet
-        let v_eng = model.defs[fleet].children[1]; // v_eng
+        let fleet = model.children(pkg).nth(2).unwrap(); // Fleet
+        let v_eng = model.children(fleet).nth(1).unwrap(); // v_eng
         assert!(
             model.defs[v_eng].chain_result.is_some(),
             "chain_result should be set after resolution"
@@ -716,8 +716,8 @@ mod tests {
         );
 
         let pkg = model.roots[0];
-        let root = model.defs[pkg].children[3]; // Root
-        let abc = model.defs[root].children[1]; // abc
+        let root = model.children(pkg).nth(3).unwrap(); // Root
+        let abc = model.children(root).nth(1).unwrap(); // abc
 
         assert!(
             model.defs[abc]
@@ -792,8 +792,8 @@ mod tests {
         );
 
         let pkg = model.roots[0];
-        let root = model.defs[pkg].children[2]; // Root
-        let bx = model.defs[root].children[1]; // bx
+        let root = model.children(pkg).nth(2).unwrap(); // Root
+        let bx = model.children(root).nth(1).unwrap(); // bx
         assert!(
             model.defs[bx].chain_result.is_some(),
             "chain_result should be set for inherited chain"
