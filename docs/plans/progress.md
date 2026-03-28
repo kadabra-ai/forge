@@ -43,6 +43,8 @@ All items shipped, pipeline works end-to-end.
 - [ ] B1: Multi-file compilation — cross-file references
 - [ ] B2: Stdlib from files — load real Kernel Semantic Library from disk
 - [ ] B3: Grow grammar beyond milestone 1 subset
+  - [ ] B3-B: Dot-chains in subsetting/specialization contexts (`subset g.g subsets b.f.a;`)
+  - [ ] B3-C: Dot-chains in expression contexts (`feature g = f.a;`)
 
 ### C. Serialization
 
