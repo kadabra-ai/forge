@@ -171,6 +171,30 @@ fn build_elements(model: &SemanticModel, interner: &StringInterner) -> Vec<Value
                     FeatureDirection::InOut => "inout",
                 });
             }
+
+            // Add chaining features
+            if !def.chain_segments.is_empty() {
+                let chaining: Vec<_> = def
+                    .chain_segments
+                    .iter()
+                    .filter_map(|seg| seg.resolved_def())
+                    .map(|id| {
+                        json!({
+                            "@type": "FeatureChaining",
+                            "chainingFeature": {
+                                "@id": format!(
+                                    "feature-{}",
+                                    id.raw()
+                                ),
+                            },
+                        })
+                    })
+                    .collect();
+                if !chaining.is_empty() {
+                    element["ownedFeatureChaining"] =
+                        json!(chaining);
+                }
+            }
         }
 
         // Add owner reference
