@@ -1,8 +1,13 @@
 package Models {
-    type Person {
-        feature parents : Person [0..*];
+    type Engine {
+        feature cylinders : Engine;
     }
-    type Family {
-        feature members : Person;
+    type Vehicle {
+        feature engine : Engine;
+    }
+    type Fleet {
+        feature vehicles : Vehicle;
+        feature v_engine chains vehicles.engine;
+        feature v_cyl chains vehicles.engine.cylinders;
     }
 }
