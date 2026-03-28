@@ -123,6 +123,8 @@ pub struct Def {
     pub type_ref: Option<NameRef>,
     /// For features: chain segments
     pub chain_segments: Vec<NameRef>,
+    /// For features with chains: the final resolved def of the chain
+    pub chain_result: Option<DefId>,
     /// For features: multiplicity
     pub multiplicity: Option<HirMultiplicity>,
     /// For features: direction modifier (in, out, inout)
@@ -150,6 +152,7 @@ impl Def {
             conjugation_decl: None,
             type_ref: None,
             chain_segments: Vec::new(),
+            chain_result: None,
             multiplicity: None,
             direction: None,
             imports: Vec::new(),
