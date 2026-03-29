@@ -34,7 +34,19 @@ All items shipped, pipeline works end-to-end.
 - [x] A1c: Inline conjugated type refs — `feature port : ~FuelPort;` (anonymous type synthesis)
 - [x] A2: Expression evaluation — symbolic MultBound (Star, IntLiteral, FeatureRef)
 - [x] A3: Feature chaining resolution — type-directed chain walking (a.b.c)
-- [ ] A4: Diamond inheritance — ordering-independent membership dedup (depends on: Membership layer + `removeRedefinedFeatures`)
+- [ ] A4: Diamond inheritance + Redefinition + Subsetting (depends on: Membership layer)
+  - [ ] A4a: Parse `redefines`/`:>>` (inline + standalone `redefinition` declarations)
+  - [ ] A4b: Parse `subsets`/`:>`, `references`/`::>`, `crosses` (all feature relationship variants)
+  - [ ] A4c: `FeatureRelationship { kind, target }` in HIR — unified storage for all variants
+  - [ ] A4d: Resolve feature relationship targets in resolve pass
+  - [ ] A4e: Implicit redefinition — name-based shadowing (owned member same name as inherited)
+  - [ ] A4f: `removeRedefinedFeatures` — filter inherited memberships (explicit + implicit)
+  - [ ] A4g: Diamond inheritance — ordering-independent dedup via MembershipId
+  - **Deferred to later:**
+  - [ ] A4-D1: Deep type-compatibility validation for redefinition (redefining must subtype redefined)
+  - [ ] A4-D2: Multiplicity compatibility validation for subsetting
+  - [ ] A4-D3: Cross-subsetting semantics (`crosses` beyond parsing + storage)
+  - [ ] A4-D4: Reference subsetting semantics (`references`/`::>` beyond parsing + storage)
 - [x] A5: Visibility (public/protected/private) — grammar + semantics + Membership layer
 - [ ] A6: DiagnosticCode + Suggestions — E0001 codes, "did you mean?" hints
 
