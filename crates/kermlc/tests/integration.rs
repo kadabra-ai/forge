@@ -1,43 +1,6 @@
-use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-use kermlc_hir::{
-    add_implicit_specializations, load_stdlib, lower_ast, FeatureDirection, SemanticModel,
-};
-use kermlc_intern::StringInterner;
-use kermlc_resolve::{detect_specialization_cycles, emit_unresolved_errors, resolve_pass};
+use kermlc::compile_source;
+use kermlc_hir::FeatureDirection;
 use kermlc_serial_json::serialize_to_json;
-use kermlc_typeck::typecheck_pass;
-use kermlc_validate::validate;
-
-/// Compile a KerML source string through the full pipeline.
-fn compile_source(source: &str) -> CompileResult {
-    let mut interner = StringInterner::new();
-    let mut source_map = SourceMap::new();
-    let mut sink = DiagnosticSink::new();
-    let file_id = source_map.add_file("test.kerml".into(), source.into());
-
-    let parse = kermlc_parser::Parser::parse(source, file_id, &mut interner, &mut sink);
-    let mut model = lower_ast(&parse, &mut interner, &mut sink);
-    let stdlib = load_stdlib(&mut model, &mut interner);
-    add_implicit_specializations(&mut model, &stdlib);
-
-    // Fixpoint loop
-    for _ in 0..100 {
-        let r = resolve_pass(&mut model, &interner, &mut sink);
-        let t = typecheck_pass(&mut model, &interner, &mut sink);
-        if !r && !t {
-            break;
-        }
-    }
-    emit_unresolved_errors(&model, &interner, &mut sink);
-    detect_specialization_cycles(&model, &interner, &mut sink);
-    validate(&model, &interner, &mut sink);
-
-    CompileResult {
-        model,
-        interner,
-        sink,
-    }
-}
 
 /// Get the fixtures directory based on CARGO_MANIFEST_DIR.
 fn fixtures_dir() -> std::path::PathBuf {
@@ -48,16 +11,10 @@ fn fixtures_dir() -> std::path::PathBuf {
 }
 
 /// Compile a KerML file from disk through the full pipeline.
-fn compile_file(path: &std::path::Path) -> CompileResult {
+fn compile_file(path: &std::path::Path) -> kermlc::CompiledModel {
     let source = std::fs::read_to_string(path)
         .unwrap_or_else(|e| panic!("could not read {}: {}", path.display(), e));
-    compile_source(&source)
-}
-
-struct CompileResult {
-    model: SemanticModel,
-    interner: StringInterner,
-    sink: DiagnosticSink,
+    compile_source(&source, &path.display().to_string())
 }
 
 // ── Valid fixture tests ──────────────────────────────────────────────
@@ -326,8 +283,7 @@ fn valid_inline_conjugation() {
         "anonymous type name should start with ~"
     );
 
-    // Anonymous type should have inherited memberships with flipped
-    // directions
+    // Anonymous type should have inherited memberships with flipped directions
     assert_eq!(
         anon.inherited_memberships.len(),
         4,
@@ -506,7 +462,7 @@ fn invalid_chain_bad_member() {
 
 #[test]
 fn json_serialization_produces_valid_json() {
-    let result = compile_source("package Foo { type Bar {} }");
+    let result = compile_source("package Foo { type Bar {} }", "test.kerml");
     assert!(!result.sink.has_errors());
 
     let json = serialize_to_json(&result.model, &result.interner);
@@ -523,6 +479,7 @@ fn cross_package_qualified_resolution() {
         package A { type X {} }
         package B { type Y :> A::X {} }
         "#,
+        "test.kerml",
     );
     assert!(
         !result.sink.has_errors(),
@@ -541,6 +498,7 @@ fn specialization_chain_inherits_features() {
             type C :> B {}
         }
         "#,
+        "test.kerml",
     );
     assert!(!result.sink.has_errors());
 
@@ -555,9 +513,244 @@ fn specialization_chain_inherits_features() {
 
 #[test]
 fn validation_catches_bad_multiplicity() {
-    let result = compile_source("package P { type T { feature x : T [5..2]; } }");
+    let result = compile_source(
+        "package P { type T { feature x : T [5..2]; } }",
+        "test.kerml",
+    );
     assert!(
         result.sink.has_errors(),
         "Should catch lower > upper multiplicity"
+    );
+}
+
+// ── Fixpoint pipeline tests (moved from kermlc/src/pipeline.rs) ─────
+
+#[test]
+fn fixpoint_resolves_cross_references() {
+    let result = compile_source(
+        r#"
+        package P {
+            type A { feature x : B; }
+            type B { feature y : A; }
+        }
+        "#,
+        "test.kerml",
+    );
+    assert!(!result.sink.has_errors());
+
+    let pkg = result.model.roots[0];
+    let a_id = result.model.children(pkg).next().unwrap();
+    let b_id = result.model.children(pkg).nth(1).unwrap();
+
+    // A's feature x should have type ref resolved to B
+    let x_id = result.model.children(a_id).next().unwrap();
+    assert!(result.model.defs[x_id].type_ref.as_ref().unwrap().is_resolved());
+    assert_eq!(
+        result.model.defs[x_id].type_ref.as_ref().unwrap().resolved_def(),
+        Some(b_id)
+    );
+
+    // B's feature y should have type ref resolved to A
+    let y_id = result.model.children(b_id).next().unwrap();
+    assert!(result.model.defs[y_id].type_ref.as_ref().unwrap().is_resolved());
+    assert_eq!(
+        result.model.defs[y_id].type_ref.as_ref().unwrap().resolved_def(),
+        Some(a_id)
+    );
+}
+
+#[test]
+fn fixpoint_resolves_specialization_chain() {
+    let result = compile_source(
+        r#"
+        package P {
+            type A { feature x : A; }
+            type B :> A {}
+            type C :> B {}
+        }
+        "#,
+        "test.kerml",
+    );
+    assert!(!result.sink.has_errors());
+
+    let pkg = result.model.roots[0];
+    let c_id = result.model.children(pkg).nth(2).unwrap();
+    assert_eq!(result.interner.resolve(result.model.defs[c_id].name), "C");
+    assert!(result.model.defs[c_id].type_checked);
+
+    // C should inherit feature x from A (through B)
+    assert!(
+        !result.model.defs[c_id].inherited_memberships.is_empty(),
+        "C should inherit features from B which inherits from A"
+    );
+}
+
+#[test]
+fn fixpoint_with_imports() {
+    let result = compile_source(
+        r#"
+        package Lib { type Base { feature id : Base; } }
+        package App {
+            import Lib::*;
+            type Widget :> Base {}
+        }
+        "#,
+        "test.kerml",
+    );
+    assert!(!result.sink.has_errors());
+
+    let app_pkg = result.model.roots[1];
+    let widget_id = result.model.children(app_pkg).next().unwrap();
+    assert_eq!(
+        result.interner.resolve(result.model.defs[widget_id].name),
+        "Widget"
+    );
+    assert!(result.model.defs[widget_id].specializations[0].is_resolved());
+    assert!(result.model.defs[widget_id].type_checked);
+}
+
+#[test]
+fn fixpoint_unresolved_emits_error() {
+    let result = compile_source(
+        "package P { type A :> DoesNotExist {} }",
+        "test.kerml",
+    );
+    assert!(result.sink.has_errors());
+}
+
+// ── Resolve+typeck tests (moved from kermlc_resolve/src/resolve.rs) ─
+
+#[test]
+fn resolve_chain_type_directed() {
+    let result = compile_source(
+        "package P {\
+            type Engine { feature cylinders : Engine; }\
+            type Vehicle { feature engine : Engine; }\
+            type Fleet {\
+                feature vehicles : Vehicle;\
+                feature v_eng chains vehicles.engine;\
+            }\
+        }",
+        "test.kerml",
+    );
+    assert!(
+        !result.sink.has_errors(),
+        "chain should resolve: {:?}",
+        result.sink.diagnostics()
+    );
+
+    let pkg = result.model.roots[0];
+    let fleet = result.model.children(pkg).nth(2).unwrap();
+    let v_eng = result.model.children(fleet).nth(1).unwrap();
+    assert!(
+        result.model.defs[v_eng].chain_result.is_some(),
+        "chain_result should be set after resolution"
+    );
+}
+
+#[test]
+fn resolve_chain_three_steps() {
+    let result = compile_source(
+        "package P {\
+            type C {}\
+            type B { feature c : C; }\
+            type A { feature b : B; }\
+            type Root {\
+                feature a : A;\
+                feature abc chains a.b.c;\
+            }\
+        }",
+        "test.kerml",
+    );
+    assert!(
+        !result.sink.has_errors(),
+        "3-step chain should resolve: {:?}",
+        result.sink.diagnostics()
+    );
+
+    let pkg = result.model.roots[0];
+    let root = result.model.children(pkg).nth(3).unwrap();
+    let abc = result.model.children(root).nth(1).unwrap();
+
+    assert!(
+        result.model.defs[abc].chain_segments.iter().all(|s| s.is_resolved()),
+        "all chain segments should be resolved"
+    );
+    assert!(
+        result.model.defs[abc].chain_result.is_some(),
+        "chain_result should be set"
+    );
+}
+
+#[test]
+fn resolve_chain_unresolved_member() {
+    let result = compile_source(
+        "package P {\
+            type A { feature x : A; }\
+            type Root {\
+                feature a : A;\
+                feature bad chains a.nonexistent;\
+            }\
+        }",
+        "test.kerml",
+    );
+    assert!(
+        result.sink.has_errors(),
+        "unresolved chain member should produce error"
+    );
+}
+
+#[test]
+fn resolve_chain_through_inherited_feature() {
+    let result = compile_source(
+        "package P {\
+            type A { feature x : A; }\
+            type B :> A {}\
+            type Root {\
+                feature b : B;\
+                feature bx chains b.x;\
+            }\
+        }",
+        "test.kerml",
+    );
+    assert!(
+        !result.sink.has_errors(),
+        "chain through inherited feature should resolve: {:?}",
+        result.sink.diagnostics()
+    );
+
+    let pkg = result.model.roots[0];
+    let root = result.model.children(pkg).nth(2).unwrap();
+    let bx = result.model.children(root).nth(1).unwrap();
+    assert!(
+        result.model.defs[bx].chain_result.is_some(),
+        "chain_result should be set for inherited chain"
+    );
+}
+
+// ── Scope test (moved from kermlc_resolve/src/scope.rs) ─────────────
+
+#[test]
+fn find_member_inherited_feature() {
+    let result = compile_source(
+        "package P { type A { feature x : A; } type B :> A {} }",
+        "test.kerml",
+    );
+
+    let pkg = result.model.roots[0];
+    let a_id = result.model.children(pkg).next().unwrap();
+    let x_id = result.model.children(a_id).next().unwrap();
+    let x_name = result.model.defs[x_id].name;
+    let b_id = result.model.children(pkg).nth(1).unwrap();
+
+    // After full compilation, B's inherited_memberships should contain x
+    let found_via_inherited = result.model.defs[b_id]
+        .inherited_memberships
+        .iter()
+        .any(|&mid| result.model.memberships[mid].member_def == x_id);
+    assert!(
+        found_via_inherited,
+        "B should have inherited x (name={}) from A after full compilation",
+        result.interner.resolve(x_name)
     );
 }

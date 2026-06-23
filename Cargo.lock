@@ -110,6 +110,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
 
 [[package]]
+name = "harpoon"
+version = "0.1.0"
+dependencies = [
+ "kermlc_diagnostics",
+ "kermlc_hir",
+ "kermlc_intern",
+ "kermlc_resolve",
+ "kermlc_serial_json",
+ "kermlc_typeck",
+ "kermlc_validate",
+]
+
+[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -132,15 +145,12 @@ name = "kermlc"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "harpoon",
  "kermlc_diagnostics",
  "kermlc_hir",
  "kermlc_intern",
- "kermlc_lexer",
  "kermlc_parser",
- "kermlc_resolve",
  "kermlc_serial_json",
- "kermlc_typeck",
- "kermlc_validate",
  "serde_json",
 ]
 
@@ -199,7 +209,6 @@ dependencies = [
  "kermlc_hir",
  "kermlc_intern",
  "kermlc_parser",
- "kermlc_typeck",
 ]
 
 [[package]]

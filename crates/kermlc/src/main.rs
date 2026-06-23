@@ -1,15 +1,9 @@
-pub mod pipeline;
-
 use clap::{Parser, Subcommand};
-use kermlc_diagnostics::{render_diagnostics, DiagnosticSink, SourceMap};
-use kermlc_hir::{add_implicit_specializations, load_stdlib, lower_ast};
-use kermlc_intern::StringInterner;
-use kermlc_resolve::detect_specialization_cycles;
+use kermlc_diagnostics::render_diagnostics;
 use kermlc_serial_json::serialize_to_json;
-use kermlc_validate::validate;
 use std::process;
 
-use crate::pipeline::resolve_and_typecheck;
+use kermlc::compile_source;
 
 #[derive(Parser)]
 #[command(name = "kermlc", about = "KerML compiler")]
@@ -49,8 +43,7 @@ fn main() {
 
     match cli.command {
         Command::Check { file, stdlib: _ } => {
-            let exit_code = run_check(&file);
-            process::exit(exit_code);
+            process::exit(run_check(&file));
         }
         Command::Compile {
             file,
@@ -58,55 +51,34 @@ fn main() {
             format,
             stdlib: _,
         } => {
-            let exit_code = run_compile(&file, &output, &format);
-            process::exit(exit_code);
+            process::exit(run_compile(&file, &output, &format));
+        }
+    }
+}
+
+fn read_source(file_path: &str) -> Option<String> {
+    match std::fs::read_to_string(file_path) {
+        Ok(s) => Some(s),
+        Err(e) => {
+            eprintln!("error: could not read `{}`: {}", file_path, e);
+            None
         }
     }
 }
 
 fn run_check(file_path: &str) -> i32 {
-    let source = match std::fs::read_to_string(file_path) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("error: could not read `{}`: {}", file_path, e);
-            return 1;
-        }
+    let Some(source) = read_source(file_path) else {
+        return 1;
     };
 
-    let mut interner = StringInterner::new();
-    let mut source_map = SourceMap::new();
-    let mut sink = DiagnosticSink::new();
+    let compiled = compile_source(&source, file_path);
 
-    let file_id = source_map.add_file(file_path.to_string(), source.clone());
-
-    // Parse
-    let parse = kermlc_parser::Parser::parse(&source, file_id, &mut interner, &mut sink);
-
-    // Lower to HIR
-    let mut model = lower_ast(&parse, &mut interner, &mut sink);
-
-    // Load stdlib + implicit specializations
-    let stdlib = load_stdlib(&mut model, &mut interner);
-    add_implicit_specializations(&mut model, &stdlib);
-
-    // Resolve + typecheck
-    resolve_and_typecheck(&mut model, &interner, &mut sink);
-
-    // Detect cycles + validate
-    detect_specialization_cycles(&model, &interner, &mut sink);
-    validate(&model, &interner, &mut sink);
-
-    // Render diagnostics
-    let diagnostics = sink.diagnostics();
+    let diagnostics = compiled.sink.diagnostics();
     if !diagnostics.is_empty() {
-        render_diagnostics(&source_map, diagnostics);
+        render_diagnostics(&compiled.source_map, diagnostics);
     }
 
-    if sink.has_errors() {
-        1
-    } else {
-        0
-    }
+    if compiled.sink.has_errors() { 1 } else { 0 }
 }
 
 fn run_compile(file_path: &str, output_path: &str, format: &str) -> i32 {
@@ -118,49 +90,22 @@ fn run_compile(file_path: &str, output_path: &str, format: &str) -> i32 {
         return 1;
     }
 
-    let source = match std::fs::read_to_string(file_path) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("error: could not read `{}`: {}", file_path, e);
-            return 1;
-        }
+    let Some(source) = read_source(file_path) else {
+        return 1;
     };
 
-    let mut interner = StringInterner::new();
-    let mut source_map = SourceMap::new();
-    let mut sink = DiagnosticSink::new();
+    let compiled = compile_source(&source, file_path);
 
-    let file_id = source_map.add_file(file_path.to_string(), source.clone());
-
-    // Parse
-    let parse = kermlc_parser::Parser::parse(&source, file_id, &mut interner, &mut sink);
-
-    // Lower to HIR
-    let mut model = lower_ast(&parse, &mut interner, &mut sink);
-
-    // Load stdlib + implicit specializations
-    let stdlib = load_stdlib(&mut model, &mut interner);
-    add_implicit_specializations(&mut model, &stdlib);
-
-    // Resolve + typecheck
-    resolve_and_typecheck(&mut model, &interner, &mut sink);
-
-    // Detect cycles + validate
-    detect_specialization_cycles(&model, &interner, &mut sink);
-    validate(&model, &interner, &mut sink);
-
-    // Render diagnostics
-    let diagnostics = sink.diagnostics();
+    let diagnostics = compiled.sink.diagnostics();
     if !diagnostics.is_empty() {
-        render_diagnostics(&source_map, diagnostics);
+        render_diagnostics(&compiled.source_map, diagnostics);
     }
 
-    if sink.has_errors() {
+    if compiled.sink.has_errors() {
         return 1;
     }
 
-    // Serialize
-    let json = serialize_to_json(&model, &interner);
+    let json = serialize_to_json(&compiled.model, &compiled.interner);
 
     match std::fs::write(output_path, &json) {
         Ok(()) => {
