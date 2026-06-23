@@ -1,7 +1,6 @@
 [package]
-name = "kermlc_lexer"
+name = "harpoon_intern"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-harpoon_diagnostics = { workspace = true }

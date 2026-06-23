@@ -1,5 +1,5 @@
 [package]
-name = "kermlc_ast"
+name = "harpoon_resolve"
 version.workspace = true
 edition.workspace = true
 
@@ -7,3 +7,7 @@ edition.workspace = true
 harpoon_intern = { workspace = true }
 harpoon_diagnostics = { workspace = true }
 harpoon_hir = { workspace = true }
+
+[dev-dependencies]
+kermlc_lower = { workspace = true }
+kermlc_parser = { workspace = true }

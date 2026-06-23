@@ -1,6 +1,6 @@
 use kermlc_ast::*;
-use kermlc_diagnostics::{Diagnostic, DiagnosticSink, FileId, Label, Span};
-use kermlc_intern::{Arena, StringInterner, SymbolId};
+use harpoon_diagnostics::{Diagnostic, DiagnosticSink, FileId, Label, Span};
+use harpoon_intern::{Arena, StringInterner, SymbolId};
 use kermlc_lexer::{Lexer, Token, TokenKind};
 
 /// The result of parsing a source file.
@@ -751,8 +751,8 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-    use kermlc_intern::StringInterner;
+    use harpoon_diagnostics::{DiagnosticSink, SourceMap};
+    use harpoon_intern::StringInterner;
 
     fn parse(input: &str) -> (ParseResult, StringInterner, DiagnosticSink) {
         let mut interner = StringInterner::new();

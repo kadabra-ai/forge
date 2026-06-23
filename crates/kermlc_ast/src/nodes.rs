@@ -1,5 +1,8 @@
-use kermlc_diagnostics::Span;
-use kermlc_intern::{Idx, SymbolId};
+use harpoon_diagnostics::Span;
+use harpoon_intern::{Idx, SymbolId};
+
+pub use harpoon_hir::FeatureDirection;
+pub use harpoon_hir::Visibility;
 
 // Type aliases for readability
 pub type PackageId = Idx<PackageDecl>;
@@ -12,14 +15,6 @@ pub type ConjugationDeclId = Idx<ConjugationDecl>;
 pub struct QualifiedName {
     pub segments: Vec<SymbolId>,
     pub span: Span,
-}
-
-/// Visibility modifier for a member or import.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Visibility {
-    Public,
-    Protected,
-    Private,
 }
 
 /// A member with optional visibility and member-only flag.
@@ -95,14 +90,6 @@ pub enum TypeExpr {
     Chain(FeatureChain),
 }
 
-/// Direction modifier for a feature (in, out, inout).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FeatureDirection {
-    In,
-    Out,
-    InOut,
-}
-
 /// `feature wheels : Wheel [4];`
 #[derive(Clone, Debug)]
 pub struct FeatureDecl {
@@ -165,7 +152,7 @@ pub struct SourceFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kermlc_intern::{Arena, StringInterner};
+    use harpoon_intern::{Arena, StringInterner};
 
     #[test]
     fn build_simple_ast() {

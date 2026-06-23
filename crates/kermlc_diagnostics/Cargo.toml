@@ -1,8 +1,0 @@
-[package]
-name = "kermlc_diagnostics"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]
-kermlc_intern = { workspace = true }
-codespan-reporting = "0.13"

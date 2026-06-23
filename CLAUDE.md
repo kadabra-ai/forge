@@ -22,34 +22,45 @@ cargo fmt --check                         # Format check
 
 ## Workspace Architecture
 
-11-crate Cargo workspace under `crates/`. The compiler pipeline flows linearly with a fixpoint loop in the middle:
+13-crate Cargo workspace under `crates/`. Two thin driver binaries sit over one shared,
+language-agnostic engine (`harpoon`); the front-end is language-specific. See ADR-0001 / `CONTEXT.md`.
+The compiler pipeline flows linearly with a fixpoint loop inside `harpoon::compile()`:
 
 ```
 Source (.kerml)
-  -> kermlc_lexer       (tokenization)
-  -> kermlc_parser      (recursive descent -> AST)
-  -> kermlc_hir         (AST lowering + stdlib loading -> SemanticModel)
-  -> kermlc_resolve     (name resolution, 5-strategy)
-     <-> kermlc_typeck  (type checking, interleaved fixpoint loop, max 100 iterations)
-  -> kermlc_validate    (semantic validation)
-  -> kermlc_serial_json (JSON-LD serialization)
+  -> kermlc_lexer        (tokenization)                          [KerML front-end]
+  -> kermlc_parser       (recursive descent -> AST)              [KerML front-end]
+  -> kermlc_lower        (AST lowering -> SemanticModel)         [KerML front-end]
+  -> load_stdlib + add_implicit_specializations                  (driver prelude)
+  -> harpoon::compile()  (engine entry point):
+       harpoon_resolve   (name resolution, 5-strategy)
+         <-> harpoon_typeck (type checking, interleaved fixpoint, max 100 iterations)
+       emit_unresolved_errors + detect_specialization_cycles
+       harpoon_validate  (semantic validation)
+  -> harpoon_serial_json (JSON-LD serialization)                 (driver, downstream of model)
 ```
+
+The driver wrapper is `kermlc::compile_source()` (parse → lower → prelude → `harpoon::compile`).
 
 ### Crate Dependency Order (bottom-up)
 
-| Layer      | Crate                | Key Exports                                                                                 |
-|------------|----------------------|---------------------------------------------------------------------------------------------|
-| Foundation | `kermlc_intern`      | `StringInterner`, `SymbolId`                                                                |
-| Foundation | `kermlc_diagnostics` | `DiagnosticSink`, `SourceMap`, `Span`, `FileId`                                             |
-| Frontend   | `kermlc_ast`         | AST node types, `AstArena`, `AstId<T>`                                                      |
-| Frontend   | `kermlc_lexer`       | `Token`, `TokenKind`, `Lexer`                                                               |
-| Frontend   | `kermlc_parser`      | `Parser::parse()` -> `ParseResult`                                                          |
-| Semantic   | `kermlc_hir`         | `SemanticModel`, `DefArena`, `DefId`, `TypeArena`, `TypeId`, `lower_ast()`, `load_stdlib()` |
-| Semantic   | `kermlc_resolve`     | `resolve_pass()`, `detect_specialization_cycles()`, `emit_unresolved_errors()`              |
-| Semantic   | `kermlc_typeck`      | `typecheck_pass()`                                                                          |
-| Semantic   | `kermlc_validate`    | `validate()`                                                                                |
-| Backend    | `kermlc_serial_json` | `serialize_to_json()`                                                                       |
-| Binary     | `kermlc`             | CLI entry point, `pipeline::resolve_and_typecheck()`                                        |
+| Layer        | Crate                 | Key Exports                                                                       |
+|--------------|-----------------------|----------------------------------------------------------------------------------|
+| Foundation   | `harpoon_intern`      | `StringInterner`, `SymbolId`                                                      |
+| Foundation   | `harpoon_diagnostics` | `DiagnosticSink`, `SourceMap`, `Span`, `FileId`                                   |
+| Frontend     | `kermlc_ast`          | AST node types, `AstArena`, `AstId<T>`                                            |
+| Frontend     | `kermlc_lexer`        | `Token`, `TokenKind`, `Lexer`                                                     |
+| Frontend     | `kermlc_parser`       | `Parser::parse()` -> `ParseResult`                                               |
+| Frontend     | `kermlc_lower`        | `lower_ast()` (KerML AST -> `SemanticModel`)                                      |
+| Engine       | `harpoon_hir`         | `SemanticModel`, `DefId`, `TypeId`, `load_stdlib()`, `FeatureDirection`, `Visibility` |
+| Engine       | `harpoon_resolve`     | `resolve_pass()`, `detect_specialization_cycles()`, `emit_unresolved_errors()`   |
+| Engine       | `harpoon_typeck`      | `typecheck_pass()`                                                                |
+| Engine       | `harpoon_validate`    | `validate()`                                                                      |
+| Engine       | `harpoon_serial_json` | `serialize_to_json()`                                                             |
+| Engine facade| `harpoon`             | `compile()` (fixpoint + diagnostics + validate); re-exports engine types         |
+| Binary       | `kermlc`              | CLI entry point, `compile_source()` (lib.rs) + thin `main.rs`                     |
+
+Engine crates (`harpoon_*`) never depend on a front-end crate; both front-ends target `SemanticModel`.
 
 ### Core Data Model
 
@@ -60,25 +71,19 @@ Source (.kerml)
 
 ### Compilation Pipeline (integration test pattern)
 
+The whole pipeline is one call. Tests and the binary cross the same seam:
+
 ```rust
-let mut interner = StringInterner::new();
-let mut source_map = SourceMap::new();
-let mut sink = DiagnosticSink::new();
-let file_id = source_map.add_file("test.kerml".into(), source.into());
-let parse = Parser::parse(source, file_id, &mut interner, &mut sink);
-let mut model = lower_ast(&parse, &interner, &mut sink);
-let stdlib = load_stdlib(&mut model, &mut interner);
-add_implicit_specializations(&mut model, &stdlib);
-// fixpoint loop
-for _ in 0..100 {
-    let r = resolve_pass(&mut model, &interner, &mut sink);
-    let t = typecheck_pass(&mut model, &interner, &mut sink);
-    if !r && !t { break; }
-}
-emit_unresolved_errors(&mut model, &interner, &mut sink);
-detect_specialization_cycles(&mut model, &interner, &mut sink);
-validate(&model, &interner, &mut sink);
+let compiled = kermlc::compile_source(source, "test.kerml");
+assert!(!compiled.sink.has_errors());
+// compiled.model / compiled.interner / compiled.source_map are available for inspection.
 ```
+
+`compile_source` (in `crates/kermlc/src/lib.rs`) runs: parse -> `lower_ast` -> `load_stdlib` ->
+`add_implicit_specializations` -> `harpoon::compile`. `harpoon::compile(&mut model, &interner,
+&mut sink)` owns the resolve/typeck fixpoint, then `emit_unresolved_errors`,
+`detect_specialization_cycles`, and `validate` — callers never choreograph those in sequence.
+Serialization (`serialize_to_json`) is a downstream step the driver invokes after the model is built.
 
 ## Test Fixtures
 

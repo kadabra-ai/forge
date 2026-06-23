@@ -1,0 +1,15 @@
+[package]
+name = "harpoon_validate"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+harpoon_intern = { workspace = true }
+harpoon_diagnostics = { workspace = true }
+harpoon_hir = { workspace = true }
+
+[dev-dependencies]
+kermlc_lower = { workspace = true }
+kermlc_parser = { workspace = true }
+harpoon_resolve = { workspace = true }
+harpoon_typeck = { workspace = true }

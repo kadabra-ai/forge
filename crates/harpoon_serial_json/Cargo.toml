@@ -1,0 +1,17 @@
+[package]
+name = "harpoon_serial_json"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+harpoon_intern = { workspace = true }
+harpoon_hir = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+harpoon_diagnostics = { workspace = true }
+kermlc_lower = { workspace = true }
+kermlc_parser = { workspace = true }
+harpoon_resolve = { workspace = true }
+harpoon_typeck = { workspace = true }
