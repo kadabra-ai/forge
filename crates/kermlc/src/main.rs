@@ -2,7 +2,8 @@ pub mod pipeline;
 
 use clap::{Parser, Subcommand};
 use kermlc_diagnostics::{render_diagnostics, DiagnosticSink, SourceMap};
-use kermlc_hir::{add_implicit_specializations, load_stdlib, lower_ast};
+use kermlc_hir::{add_implicit_specializations, load_stdlib};
+use kermlc_lower::lower_ast;
 use kermlc_intern::StringInterner;
 use kermlc_resolve::detect_specialization_cycles;
 use kermlc_serial_json::serialize_to_json;

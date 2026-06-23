@@ -8,6 +8,7 @@ members = [
     "crates/kermlc_lexer",
     "crates/kermlc_parser",
     "crates/kermlc_hir",
+    "crates/kermlc_lower",
     "crates/kermlc_resolve",
     "crates/kermlc_typeck",
     "crates/kermlc_validate",
@@ -26,6 +27,7 @@ kermlc_ast = { path = "crates/kermlc_ast" }
 kermlc_lexer = { path = "crates/kermlc_lexer" }
 kermlc_parser = { path = "crates/kermlc_parser" }
 kermlc_hir = { path = "crates/kermlc_hir" }
+kermlc_lower = { path = "crates/kermlc_lower" }
 kermlc_resolve = { path = "crates/kermlc_resolve" }
 kermlc_typeck = { path = "crates/kermlc_typeck" }
 kermlc_validate = { path = "crates/kermlc_validate" }

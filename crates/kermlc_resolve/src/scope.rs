@@ -112,7 +112,7 @@ pub fn find_member(model: &SemanticModel, type_def_id: DefId, name: SymbolId) ->
 mod tests {
     use super::*;
     use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-    use kermlc_hir::lower_ast;
+    use kermlc_lower::lower_ast;
     use kermlc_intern::StringInterner;
     use kermlc_parser::Parser;
 

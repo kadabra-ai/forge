@@ -1,9 +1,19 @@
-use crate::types::*;
-use kermlc_ast;
 use kermlc_diagnostics::DiagnosticSink;
+use kermlc_hir::{
+    Def, DefId, DefKind, HirMultiplicity, Import, MembershipKind, MultBound, NameRef,
+    ResolutionState, SemanticModel, Visibility,
+};
 use kermlc_intern::StringInterner;
 
-/// Lower a ParseResult (AST) into a SemanticModel (HIR).
+/// Lower a `ParseResult` (AST) into a `SemanticModel` (HIR).
+///
+/// Args:
+///     parse: The parser output containing the AST.
+///     interner: String interner used for symbol resolution and name synthesis.
+///     _sink: Diagnostic sink for emitting lowering errors (currently unused).
+///
+/// Returns:
+///     A `SemanticModel` with all top-level definitions lowered from the AST.
 pub fn lower_ast(
     parse: &kermlc_parser::ParseResult,
     interner: &mut StringInterner,
@@ -247,13 +257,11 @@ fn lower_expr_to_bound(expr: &kermlc_ast::Expr) -> MultBound {
     }
 }
 
-// We need kermlc_parser as a dependency for ParseResult
-// This will be added to Cargo.toml
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use kermlc_diagnostics::{DiagnosticSink, SourceMap};
+    use kermlc_hir::{DefKind, FeatureDirection, MultBound, ResolutionState};
     use kermlc_intern::StringInterner;
     use kermlc_parser::Parser;
 
@@ -335,7 +343,8 @@ mod tests {
 
     #[test]
     fn lower_creates_feature_with_type_ref() {
-        let (model, interner, sink) = lower("package P { type T { feature x : Integer [0..1]; } }");
+        let (model, interner, sink) =
+            lower("package P { type T { feature x : Integer [0..1]; } }");
         assert!(!sink.has_errors());
 
         let pkg_id = model.roots[0];

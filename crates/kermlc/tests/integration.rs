@@ -1,7 +1,6 @@
 use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-use kermlc_hir::{
-    add_implicit_specializations, load_stdlib, lower_ast, FeatureDirection, SemanticModel,
-};
+use kermlc_hir::{add_implicit_specializations, load_stdlib, FeatureDirection, SemanticModel};
+use kermlc_lower::lower_ast;
 use kermlc_intern::StringInterner;
 use kermlc_resolve::{detect_specialization_cycles, emit_unresolved_errors, resolve_pass};
 use kermlc_serial_json::serialize_to_json;
