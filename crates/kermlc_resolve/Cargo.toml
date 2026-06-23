@@ -9,4 +9,5 @@ kermlc_diagnostics = { workspace = true }
 kermlc_hir = { workspace = true }
 
 [dev-dependencies]
+kermlc_lower = { workspace = true }
 kermlc_parser = { workspace = true }

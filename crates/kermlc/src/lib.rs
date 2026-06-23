@@ -1,6 +1,7 @@
 use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-use kermlc_hir::{add_implicit_specializations, load_stdlib, lower_ast, SemanticModel};
+use kermlc_hir::{add_implicit_specializations, load_stdlib, SemanticModel};
 use kermlc_intern::StringInterner;
+use kermlc_lower::lower_ast;
 
 /// The output of a full front-end + engine compilation pass.
 ///

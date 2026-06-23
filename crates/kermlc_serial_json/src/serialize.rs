@@ -241,7 +241,7 @@ fn mult_bound_to_json(
 mod tests {
     use super::*;
     use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-    use kermlc_hir::lower_ast;
+    use kermlc_lower::lower_ast;
     use kermlc_intern::StringInterner;
     use kermlc_parser::Parser;
     use kermlc_resolve::{emit_unresolved_errors, resolve_pass};

@@ -463,8 +463,8 @@ fn try_resolve_name(
 mod tests {
     use super::*;
     use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-    use kermlc_hir::lower_ast;
     use kermlc_intern::StringInterner;
+    use kermlc_lower::lower_ast;
     use kermlc_parser::Parser;
 
     fn parse_and_lower(input: &str) -> (SemanticModel, StringInterner, DiagnosticSink) {

@@ -1,8 +1,21 @@
 use kermlc_diagnostics::Span;
 use kermlc_intern::{Arena, Idx, SymbolId};
 
-pub use kermlc_ast::FeatureDirection;
-pub use kermlc_ast::Visibility;
+/// Direction modifier for a feature (in, out, inout).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FeatureDirection {
+    In,
+    Out,
+    InOut,
+}
+
+/// Visibility modifier for a member or import.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Visibility {
+    Public,
+    Protected,
+    Private,
+}
 
 /// A definition ID — typed index into the def arena.
 pub type DefId = Idx<Def>;

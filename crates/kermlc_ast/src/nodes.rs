@@ -1,6 +1,9 @@
 use kermlc_diagnostics::Span;
 use kermlc_intern::{Idx, SymbolId};
 
+pub use kermlc_hir::FeatureDirection;
+pub use kermlc_hir::Visibility;
+
 // Type aliases for readability
 pub type PackageId = Idx<PackageDecl>;
 pub type TypeDeclId = Idx<TypeDecl>;
@@ -12,14 +15,6 @@ pub type ConjugationDeclId = Idx<ConjugationDecl>;
 pub struct QualifiedName {
     pub segments: Vec<SymbolId>,
     pub span: Span,
-}
-
-/// Visibility modifier for a member or import.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Visibility {
-    Public,
-    Protected,
-    Private,
 }
 
 /// A member with optional visibility and member-only flag.
@@ -93,14 +88,6 @@ pub enum TypeExpr {
     Conjugated(QualifiedName, Span),
     /// Feature chain used as type: `a.b` (future)
     Chain(FeatureChain),
-}
-
-/// Direction modifier for a feature (in, out, inout).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FeatureDirection {
-    In,
-    Out,
-    InOut,
 }
 
 /// `feature wheels : Wheel [4];`

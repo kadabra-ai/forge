@@ -171,7 +171,8 @@ fn check_feature(model: &mut SemanticModel, def_id: DefId) -> bool {
 mod tests {
     use super::*;
     use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-    use kermlc_hir::{lower_ast, FeatureDirection};
+    use kermlc_hir::FeatureDirection;
+    use kermlc_lower::lower_ast;
     use kermlc_intern::StringInterner;
     use kermlc_parser::Parser;
     use kermlc_resolve::resolve_pass;

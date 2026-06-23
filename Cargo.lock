@@ -149,6 +149,7 @@ dependencies = [
  "kermlc_diagnostics",
  "kermlc_hir",
  "kermlc_intern",
+ "kermlc_lower",
  "kermlc_parser",
  "kermlc_serial_json",
  "serde_json",
@@ -159,6 +160,7 @@ name = "kermlc_ast"
 version = "0.1.0"
 dependencies = [
  "kermlc_diagnostics",
+ "kermlc_hir",
  "kermlc_intern",
 ]
 
@@ -174,10 +176,8 @@ dependencies = [
 name = "kermlc_hir"
 version = "0.1.0"
 dependencies = [
- "kermlc_ast",
  "kermlc_diagnostics",
  "kermlc_intern",
- "kermlc_parser",
 ]
 
 [[package]]
@@ -189,6 +189,17 @@ name = "kermlc_lexer"
 version = "0.1.0"
 dependencies = [
  "kermlc_diagnostics",
+]
+
+[[package]]
+name = "kermlc_lower"
+version = "0.1.0"
+dependencies = [
+ "kermlc_ast",
+ "kermlc_diagnostics",
+ "kermlc_hir",
+ "kermlc_intern",
+ "kermlc_parser",
 ]
 
 [[package]]
@@ -208,6 +219,7 @@ dependencies = [
  "kermlc_diagnostics",
  "kermlc_hir",
  "kermlc_intern",
+ "kermlc_lower",
  "kermlc_parser",
 ]
 
@@ -218,6 +230,7 @@ dependencies = [
  "kermlc_diagnostics",
  "kermlc_hir",
  "kermlc_intern",
+ "kermlc_lower",
  "kermlc_parser",
  "kermlc_resolve",
  "kermlc_typeck",
@@ -232,6 +245,7 @@ dependencies = [
  "kermlc_diagnostics",
  "kermlc_hir",
  "kermlc_intern",
+ "kermlc_lower",
  "kermlc_parser",
  "kermlc_resolve",
 ]
@@ -243,6 +257,7 @@ dependencies = [
  "kermlc_diagnostics",
  "kermlc_hir",
  "kermlc_intern",
+ "kermlc_lower",
  "kermlc_parser",
  "kermlc_resolve",
  "kermlc_typeck",
