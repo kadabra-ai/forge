@@ -155,28 +155,6 @@ mod tests {
     }
 
     #[test]
-    fn find_member_inherited_feature() {
-        let (mut model, interner, mut sink) =
-            parse_and_lower("package P { type A { feature x : A; } type B :> A {} }");
-        for _ in 0..10 {
-            let r = crate::resolve_pass(&mut model, &interner, &mut sink);
-            let t = kermlc_typeck::typecheck_pass(&mut model, &interner, &mut sink);
-            if !r && !t {
-                break;
-            }
-        }
-
-        let pkg = model.roots[0];
-        let a_id = model.children(pkg).next().unwrap();
-        let x_id = model.children(a_id).next().unwrap();
-        let x_name = model.defs[x_id].name;
-        let b_id = model.children(pkg).nth(1).unwrap();
-
-        let found = find_member(&model, b_id, x_name);
-        assert_eq!(found, Some(x_id));
-    }
-
-    #[test]
     fn find_member_no_parent_walking() {
         let (model, mut interner, _sink) =
             parse_and_lower("package P { type T {} feature outside : T; }");

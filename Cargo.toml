@@ -12,6 +12,7 @@ members = [
     "crates/kermlc_typeck",
     "crates/kermlc_validate",
     "crates/kermlc_serial_json",
+    "crates/harpoon",
 ]
 
 [workspace.package]
@@ -30,3 +31,4 @@ kermlc_resolve = { path = "crates/kermlc_resolve" }
 kermlc_typeck = { path = "crates/kermlc_typeck" }
 kermlc_validate = { path = "crates/kermlc_validate" }
 kermlc_serial_json = { path = "crates/kermlc_serial_json" }
+harpoon = { path = "crates/harpoon" }
