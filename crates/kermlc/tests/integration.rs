@@ -1,6 +1,6 @@
 use kermlc::compile_source;
-use kermlc_hir::FeatureDirection;
-use kermlc_serial_json::serialize_to_json;
+use harpoon_hir::FeatureDirection;
+use harpoon_serial_json::serialize_to_json;
 
 /// Get the fixtures directory based on CARGO_MANIFEST_DIR.
 fn fixtures_dir() -> std::path::PathBuf {
@@ -189,7 +189,7 @@ fn valid_conjugation_named() {
         .expect("conjugation c1 not found");
     assert_eq!(
         result.model.defs[conj_id].kind,
-        kermlc_hir::DefKind::Conjugation
+        harpoon_hir::DefKind::Conjugation
     );
 }
 
@@ -212,7 +212,7 @@ fn valid_feature_conjugation() {
         .expect("feature g not found");
 
     let g_def = &result.model.defs[g_id];
-    assert_eq!(g_def.kind, kermlc_hir::DefKind::Feature);
+    assert_eq!(g_def.kind, harpoon_hir::DefKind::Feature);
     assert!(g_def.conjugation.is_some(), "g should have conjugation ref");
     assert!(
         g_def.conjugation.as_ref().unwrap().is_resolved(),
@@ -277,7 +277,7 @@ fn valid_inline_conjugation() {
     // The anonymous type should have conjugation-flipped features
     let anon_id = type_ref.resolved_def().unwrap();
     let anon = &result.model.defs[anon_id];
-    assert_eq!(anon.kind, kermlc_hir::DefKind::Type);
+    assert_eq!(anon.kind, harpoon_hir::DefKind::Type);
     assert!(
         result.interner.resolve(anon.name).starts_with('~'),
         "anonymous type name should start with ~"
@@ -353,10 +353,10 @@ fn valid_multiplicity_feature_ref() {
         .expect("ports should have multiplicity");
 
     assert!(
-        matches!(mult.lower, kermlc_hir::MultBound::Exact(1)),
+        matches!(mult.lower, harpoon_hir::MultBound::Exact(1)),
         "lower should be Exact(1)"
     );
-    if let kermlc_hir::MultBound::Ref(ref name_ref) = mult.upper {
+    if let harpoon_hir::MultBound::Ref(ref name_ref) = mult.upper {
         assert!(
             name_ref.is_resolved(),
             "upper bound 'portCount' should be resolved"
@@ -618,7 +618,7 @@ fn fixpoint_unresolved_emits_error() {
     assert!(result.sink.has_errors());
 }
 
-// ── Resolve+typeck tests (moved from kermlc_resolve/src/resolve.rs) ─
+// ── Resolve+typeck tests (moved from harpoon_resolve/src/resolve.rs) ─
 
 #[test]
 fn resolve_chain_type_directed() {
@@ -728,7 +728,7 @@ fn resolve_chain_through_inherited_feature() {
     );
 }
 
-// ── Scope test (moved from kermlc_resolve/src/scope.rs) ─────────────
+// ── Scope test (moved from harpoon_resolve/src/scope.rs) ─────────────
 
 #[test]
 fn find_member_inherited_feature() {

@@ -1,6 +1,6 @@
-use kermlc_diagnostics::{Diagnostic, DiagnosticSink, Label};
-use kermlc_hir::{DefId, DefKind, MultBound, SemanticModel};
-use kermlc_intern::StringInterner;
+use harpoon_diagnostics::{Diagnostic, DiagnosticSink, Label};
+use harpoon_hir::{DefId, DefKind, MultBound, SemanticModel};
+use harpoon_intern::StringInterner;
 
 /// Run semantic validation on a fully resolved model.
 /// Returns `true` if any validation errors were found.
@@ -327,12 +327,12 @@ fn validate_redefinition_multiplicity(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kermlc_diagnostics::SourceMap;
+    use harpoon_diagnostics::SourceMap;
     use kermlc_lower::lower_ast;
-    use kermlc_intern::StringInterner;
+    use harpoon_intern::StringInterner;
     use kermlc_parser::Parser;
-    use kermlc_resolve::{emit_unresolved_errors, resolve_pass};
-    use kermlc_typeck::typecheck_pass;
+    use harpoon_resolve::{emit_unresolved_errors, resolve_pass};
+    use harpoon_typeck::typecheck_pass;
 
     fn compile_and_validate(input: &str) -> (SemanticModel, DiagnosticSink) {
         let mut interner = StringInterner::new();

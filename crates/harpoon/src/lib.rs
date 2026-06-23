@@ -1,15 +1,15 @@
-use kermlc_diagnostics::DiagnosticSink;
-use kermlc_intern::StringInterner;
-use kermlc_resolve::{detect_specialization_cycles, emit_unresolved_errors, resolve_pass};
-use kermlc_typeck::typecheck_pass;
-use kermlc_validate::validate;
+use harpoon_diagnostics::DiagnosticSink;
+use harpoon_intern::StringInterner;
+use harpoon_resolve::{detect_specialization_cycles, emit_unresolved_errors, resolve_pass};
+use harpoon_typeck::typecheck_pass;
+use harpoon_validate::validate;
 
 // Re-export engine types that drivers and tests need.
-pub use kermlc_hir::{
+pub use harpoon_hir::{
     DefId, DefKind, FeatureDirection, MembershipId, MultBound, NameRef, ResolutionState,
     SemanticModel, StdlibDefs, Visibility,
 };
-pub use kermlc_serial_json::serialize_to_json;
+pub use harpoon_serial_json::serialize_to_json;
 
 /// Maximum fixpoint iterations for the resolve/typecheck loop.
 const MAX_ITERATIONS: usize = 100;

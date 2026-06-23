@@ -1,5 +1,5 @@
 use crate::token::{Token, TokenKind};
-use kermlc_diagnostics::{FileId, Span};
+use harpoon_diagnostics::{FileId, Span};
 
 pub struct Lexer<'a> {
     source: &'a str,
@@ -179,7 +179,7 @@ impl<'a> Lexer<'a> {
 mod tests {
     use super::*;
     use crate::token::TokenKind;
-    use kermlc_diagnostics::FileId;
+    use harpoon_diagnostics::FileId;
 
     fn lex(input: &str) -> Vec<(TokenKind, &str)> {
         let mut lexer = Lexer::new(input, FileId(0));

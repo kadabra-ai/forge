@@ -113,13 +113,84 @@ checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
 name = "harpoon"
 version = "0.1.0"
 dependencies = [
- "kermlc_diagnostics",
- "kermlc_hir",
- "kermlc_intern",
- "kermlc_resolve",
- "kermlc_serial_json",
- "kermlc_typeck",
- "kermlc_validate",
+ "harpoon_diagnostics",
+ "harpoon_hir",
+ "harpoon_intern",
+ "harpoon_resolve",
+ "harpoon_serial_json",
+ "harpoon_typeck",
+ "harpoon_validate",
+]
+
+[[package]]
+name = "harpoon_diagnostics"
+version = "0.1.0"
+dependencies = [
+ "codespan-reporting",
+ "harpoon_intern",
+]
+
+[[package]]
+name = "harpoon_hir"
+version = "0.1.0"
+dependencies = [
+ "harpoon_diagnostics",
+ "harpoon_intern",
+]
+
+[[package]]
+name = "harpoon_intern"
+version = "0.1.0"
+
+[[package]]
+name = "harpoon_resolve"
+version = "0.1.0"
+dependencies = [
+ "harpoon_diagnostics",
+ "harpoon_hir",
+ "harpoon_intern",
+ "kermlc_lower",
+ "kermlc_parser",
+]
+
+[[package]]
+name = "harpoon_serial_json"
+version = "0.1.0"
+dependencies = [
+ "harpoon_diagnostics",
+ "harpoon_hir",
+ "harpoon_intern",
+ "harpoon_resolve",
+ "harpoon_typeck",
+ "kermlc_lower",
+ "kermlc_parser",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "harpoon_typeck"
+version = "0.1.0"
+dependencies = [
+ "harpoon_diagnostics",
+ "harpoon_hir",
+ "harpoon_intern",
+ "harpoon_resolve",
+ "kermlc_lower",
+ "kermlc_parser",
+]
+
+[[package]]
+name = "harpoon_validate"
+version = "0.1.0"
+dependencies = [
+ "harpoon_diagnostics",
+ "harpoon_hir",
+ "harpoon_intern",
+ "harpoon_resolve",
+ "harpoon_typeck",
+ "kermlc_lower",
+ "kermlc_parser",
 ]
 
 [[package]]
@@ -146,12 +217,12 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "harpoon",
- "kermlc_diagnostics",
- "kermlc_hir",
- "kermlc_intern",
+ "harpoon_diagnostics",
+ "harpoon_hir",
+ "harpoon_intern",
+ "harpoon_serial_json",
  "kermlc_lower",
  "kermlc_parser",
- "kermlc_serial_json",
  "serde_json",
 ]
 
@@ -159,46 +230,26 @@ dependencies = [
 name = "kermlc_ast"
 version = "0.1.0"
 dependencies = [
- "kermlc_diagnostics",
- "kermlc_hir",
- "kermlc_intern",
+ "harpoon_diagnostics",
+ "harpoon_hir",
+ "harpoon_intern",
 ]
-
-[[package]]
-name = "kermlc_diagnostics"
-version = "0.1.0"
-dependencies = [
- "codespan-reporting",
- "kermlc_intern",
-]
-
-[[package]]
-name = "kermlc_hir"
-version = "0.1.0"
-dependencies = [
- "kermlc_diagnostics",
- "kermlc_intern",
-]
-
-[[package]]
-name = "kermlc_intern"
-version = "0.1.0"
 
 [[package]]
 name = "kermlc_lexer"
 version = "0.1.0"
 dependencies = [
- "kermlc_diagnostics",
+ "harpoon_diagnostics",
 ]
 
 [[package]]
 name = "kermlc_lower"
 version = "0.1.0"
 dependencies = [
+ "harpoon_diagnostics",
+ "harpoon_hir",
+ "harpoon_intern",
  "kermlc_ast",
- "kermlc_diagnostics",
- "kermlc_hir",
- "kermlc_intern",
  "kermlc_parser",
 ]
 
@@ -206,61 +257,10 @@ dependencies = [
 name = "kermlc_parser"
 version = "0.1.0"
 dependencies = [
+ "harpoon_diagnostics",
+ "harpoon_intern",
  "kermlc_ast",
- "kermlc_diagnostics",
- "kermlc_intern",
  "kermlc_lexer",
-]
-
-[[package]]
-name = "kermlc_resolve"
-version = "0.1.0"
-dependencies = [
- "kermlc_diagnostics",
- "kermlc_hir",
- "kermlc_intern",
- "kermlc_lower",
- "kermlc_parser",
-]
-
-[[package]]
-name = "kermlc_serial_json"
-version = "0.1.0"
-dependencies = [
- "kermlc_diagnostics",
- "kermlc_hir",
- "kermlc_intern",
- "kermlc_lower",
- "kermlc_parser",
- "kermlc_resolve",
- "kermlc_typeck",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "kermlc_typeck"
-version = "0.1.0"
-dependencies = [
- "kermlc_diagnostics",
- "kermlc_hir",
- "kermlc_intern",
- "kermlc_lower",
- "kermlc_parser",
- "kermlc_resolve",
-]
-
-[[package]]
-name = "kermlc_validate"
-version = "0.1.0"
-dependencies = [
- "kermlc_diagnostics",
- "kermlc_hir",
- "kermlc_intern",
- "kermlc_lower",
- "kermlc_parser",
- "kermlc_resolve",
- "kermlc_typeck",
 ]
 
 [[package]]

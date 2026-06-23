@@ -1,8 +1,8 @@
 [package]
-name = "kermlc_diagnostics"
+name = "harpoon_diagnostics"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-kermlc_intern = { workspace = true }
+harpoon_intern = { workspace = true }
 codespan-reporting = "0.13"

@@ -1,6 +1,6 @@
 use crate::types::*;
-use kermlc_diagnostics::Span;
-use kermlc_intern::StringInterner;
+use harpoon_diagnostics::Span;
+use harpoon_intern::StringInterner;
 
 /// Load the minimal Kernel Semantic Library base types into the model.
 ///
@@ -146,7 +146,7 @@ pub struct StdlibDefs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kermlc_intern::StringInterner;
+    use harpoon_intern::StringInterner;
 
     #[test]
     fn stdlib_creates_six_types() {

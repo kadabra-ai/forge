@@ -1,11 +1,8 @@
 [package]
-name = "kermlc_lower"
+name = "harpoon_hir"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
 harpoon_intern = { workspace = true }
 harpoon_diagnostics = { workspace = true }
-kermlc_ast = { workspace = true }
-kermlc_parser = { workspace = true }
-harpoon_hir = { workspace = true }

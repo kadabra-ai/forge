@@ -1,7 +1,7 @@
 use crate::scope::{resolve_qualified, resolve_qualified_from_root, resolve_via_imports};
-use kermlc_diagnostics::{Diagnostic, DiagnosticSink, Label};
-use kermlc_hir::{DefId, ResolutionState, SemanticModel};
-use kermlc_intern::StringInterner;
+use harpoon_diagnostics::{Diagnostic, DiagnosticSink, Label};
+use harpoon_hir::{DefId, ResolutionState, SemanticModel};
+use harpoon_intern::StringInterner;
 
 /// Run one pass of name resolution over the entire model.
 /// Returns `true` if any name was resolved (i.e., progress was made).
@@ -67,7 +67,7 @@ pub fn emit_unresolved_errors(
         }
         if let Some(ref mult) = def.multiplicity {
             for bound in [&mult.lower, &mult.upper] {
-                if let kermlc_hir::MultBound::Ref(ref r) = bound {
+                if let harpoon_hir::MultBound::Ref(ref r) = bound {
                     emit_unresolved(r, "multiplicity bound", interner, sink);
                 }
             }
@@ -88,7 +88,7 @@ pub fn detect_specialization_cycles(
     let all_defs: Vec<DefId> = model
         .defs
         .iter()
-        .filter(|(_, d)| d.kind == kermlc_hir::DefKind::Type)
+        .filter(|(_, d)| d.kind == harpoon_hir::DefKind::Type)
         .map(|(id, _)| id)
         .collect();
 
@@ -154,7 +154,7 @@ pub fn detect_specialization_cycles(
 }
 
 fn emit_unresolved(
-    nr: &kermlc_hir::NameRef,
+    nr: &harpoon_hir::NameRef,
     kind: &str,
     interner: &StringInterner,
     sink: &mut DiagnosticSink,
@@ -168,7 +168,7 @@ fn emit_unresolved(
     }
 }
 
-fn segments_to_string(segments: &[kermlc_intern::SymbolId], interner: &StringInterner) -> String {
+fn segments_to_string(segments: &[harpoon_intern::SymbolId], interner: &StringInterner) -> String {
     segments
         .iter()
         .map(|s| interner.resolve(*s))
@@ -180,8 +180,8 @@ fn segments_to_string(segments: &[kermlc_intern::SymbolId], interner: &StringInt
 fn resolve_name_ref_vec(
     model: &mut SemanticModel,
     def_id: DefId,
-    get: fn(&kermlc_hir::Def) -> &[kermlc_hir::NameRef],
-    get_mut: fn(&mut kermlc_hir::Def) -> &mut [kermlc_hir::NameRef],
+    get: fn(&harpoon_hir::Def) -> &[harpoon_hir::NameRef],
+    get_mut: fn(&mut harpoon_hir::Def) -> &mut [harpoon_hir::NameRef],
 ) -> bool {
     let count = get(&model.defs[def_id]).len();
     let mut changed = false;
@@ -202,8 +202,8 @@ fn resolve_name_ref_vec(
 fn resolve_optional_ref(
     model: &mut SemanticModel,
     def_id: DefId,
-    get: fn(&kermlc_hir::Def) -> Option<&kermlc_hir::NameRef>,
-    set: fn(&mut kermlc_hir::Def, ResolutionState),
+    get: fn(&harpoon_hir::Def) -> Option<&harpoon_hir::NameRef>,
+    set: fn(&mut harpoon_hir::Def, ResolutionState),
 ) -> bool {
     let segments = match get(&model.defs[def_id]) {
         Some(nr) if nr.resolution == ResolutionState::Unresolved => nr.segments.clone(),
@@ -251,7 +251,7 @@ fn resolve_conjugation_for(model: &mut SemanticModel, def_id: DefId) -> bool {
 }
 
 fn resolve_conjugation_decl_for(model: &mut SemanticModel, def_id: DefId) -> bool {
-    if model.defs[def_id].kind != kermlc_hir::DefKind::Conjugation {
+    if model.defs[def_id].kind != harpoon_hir::DefKind::Conjugation {
         return false;
     }
     let mut changed = false;
@@ -384,15 +384,15 @@ fn resolve_multiplicity_refs_for(model: &mut SemanticModel, def_id: DefId) -> bo
 fn resolve_mult_bound(
     model: &mut SemanticModel,
     def_id: DefId,
-    get: fn(&kermlc_hir::HirMultiplicity) -> &kermlc_hir::MultBound,
-    get_mut: fn(&mut kermlc_hir::HirMultiplicity) -> &mut kermlc_hir::MultBound,
+    get: fn(&harpoon_hir::HirMultiplicity) -> &harpoon_hir::MultBound,
+    get_mut: fn(&mut harpoon_hir::HirMultiplicity) -> &mut harpoon_hir::MultBound,
 ) -> bool {
     let mult = model.defs[def_id]
         .multiplicity
         .as_ref()
         .expect("caller checked is_some");
     let segments = match get(mult) {
-        kermlc_hir::MultBound::Ref(nr) if nr.resolution == ResolutionState::Unresolved => {
+        harpoon_hir::MultBound::Ref(nr) if nr.resolution == ResolutionState::Unresolved => {
             nr.segments.clone()
         }
         _ => return false,
@@ -419,7 +419,7 @@ fn resolve_mult_bound(
 fn try_resolve_name(
     model: &SemanticModel,
     scope: DefId,
-    segments: &[kermlc_intern::SymbolId],
+    segments: &[harpoon_intern::SymbolId],
 ) -> Option<DefId> {
     if segments.is_empty() {
         return None;
@@ -462,8 +462,8 @@ fn try_resolve_name(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-    use kermlc_intern::StringInterner;
+    use harpoon_diagnostics::{DiagnosticSink, SourceMap};
+    use harpoon_intern::StringInterner;
     use kermlc_lower::lower_ast;
     use kermlc_parser::Parser;
 
@@ -612,7 +612,7 @@ mod tests {
             .as_ref()
             .expect("x should have multiplicity");
 
-        if let kermlc_hir::MultBound::Ref(ref name_ref) = mult.upper {
+        if let harpoon_hir::MultBound::Ref(ref name_ref) = mult.upper {
             assert!(
                 name_ref.is_resolved(),
                 "multiplicity ref 'n' should resolve to the feature"

@@ -1,9 +1,9 @@
-use kermlc_diagnostics::DiagnosticSink;
-use kermlc_hir::{
+use harpoon_diagnostics::DiagnosticSink;
+use harpoon_hir::{
     Def, DefId, DefKind, HirMultiplicity, Import, MembershipKind, MultBound, NameRef,
     ResolutionState, SemanticModel, Visibility,
 };
-use kermlc_intern::StringInterner;
+use harpoon_intern::StringInterner;
 
 /// Lower a `ParseResult` (AST) into a `SemanticModel` (HIR).
 ///
@@ -209,7 +209,7 @@ impl<'a> LowerCtx<'a> {
     fn synthesize_conjugated_type(
         &mut self,
         original: &kermlc_ast::QualifiedName,
-        span: kermlc_diagnostics::Span,
+        span: harpoon_diagnostics::Span,
     ) -> DefId {
         let last_seg = *original.segments.last().expect("empty qualified name");
         let orig_name = self.interner.resolve(last_seg);
@@ -260,9 +260,9 @@ fn lower_expr_to_bound(expr: &kermlc_ast::Expr) -> MultBound {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-    use kermlc_hir::{DefKind, FeatureDirection, MultBound, ResolutionState};
-    use kermlc_intern::StringInterner;
+    use harpoon_diagnostics::{DiagnosticSink, SourceMap};
+    use harpoon_hir::{DefKind, FeatureDirection, MultBound, ResolutionState};
+    use harpoon_intern::StringInterner;
     use kermlc_parser::Parser;
 
     fn lower(input: &str) -> (SemanticModel, StringInterner, DiagnosticSink) {

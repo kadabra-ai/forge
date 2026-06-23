@@ -1,6 +1,6 @@
-use kermlc_diagnostics::DiagnosticSink;
-use kermlc_hir::{DefId, DefKind, MembershipId, MembershipKind, SemanticModel, Visibility};
-use kermlc_intern::StringInterner;
+use harpoon_diagnostics::DiagnosticSink;
+use harpoon_hir::{DefId, DefKind, MembershipId, MembershipKind, SemanticModel, Visibility};
+use harpoon_intern::StringInterner;
 
 /// Run one pass of type checking over the model.
 /// Processes resolved specializations to compute inherited features.
@@ -130,10 +130,10 @@ fn check_conjugation_decl(model: &mut SemanticModel, def_id: DefId) -> bool {
 
     // Set the conjugation on the conjugated type so check_type
     // picks it up and applies direction flipping
-    model.defs[conjugated_id].conjugation = Some(kermlc_hir::NameRef {
+    model.defs[conjugated_id].conjugation = Some(harpoon_hir::NameRef {
         segments: orig_ref.segments,
         span: orig_ref.span,
-        resolution: kermlc_hir::ResolutionState::Resolved(original_id),
+        resolution: harpoon_hir::ResolutionState::Resolved(original_id),
     });
 
     // Reset type_checked on the conjugated type so it gets
@@ -170,12 +170,12 @@ fn check_feature(model: &mut SemanticModel, def_id: DefId) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kermlc_diagnostics::{DiagnosticSink, SourceMap};
-    use kermlc_hir::FeatureDirection;
+    use harpoon_diagnostics::{DiagnosticSink, SourceMap};
+    use harpoon_hir::FeatureDirection;
     use kermlc_lower::lower_ast;
-    use kermlc_intern::StringInterner;
+    use harpoon_intern::StringInterner;
     use kermlc_parser::Parser;
-    use kermlc_resolve::resolve_pass;
+    use harpoon_resolve::resolve_pass;
 
     fn compile_to_model(input: &str) -> (SemanticModel, StringInterner, DiagnosticSink) {
         let mut interner = StringInterner::new();

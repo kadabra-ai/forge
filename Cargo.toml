@@ -2,17 +2,17 @@
 resolver = "2"
 members = [
     "crates/kermlc",
-    "crates/kermlc_intern",
-    "crates/kermlc_diagnostics",
+    "crates/harpoon_intern",
+    "crates/harpoon_diagnostics",
     "crates/kermlc_ast",
     "crates/kermlc_lexer",
     "crates/kermlc_parser",
-    "crates/kermlc_hir",
+    "crates/harpoon_hir",
     "crates/kermlc_lower",
-    "crates/kermlc_resolve",
-    "crates/kermlc_typeck",
-    "crates/kermlc_validate",
-    "crates/kermlc_serial_json",
+    "crates/harpoon_resolve",
+    "crates/harpoon_typeck",
+    "crates/harpoon_validate",
+    "crates/harpoon_serial_json",
     "crates/harpoon",
 ]
 
@@ -22,15 +22,15 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-kermlc_intern = { path = "crates/kermlc_intern" }
-kermlc_diagnostics = { path = "crates/kermlc_diagnostics" }
+harpoon_intern = { path = "crates/harpoon_intern" }
+harpoon_diagnostics = { path = "crates/harpoon_diagnostics" }
 kermlc_ast = { path = "crates/kermlc_ast" }
 kermlc_lexer = { path = "crates/kermlc_lexer" }
 kermlc_parser = { path = "crates/kermlc_parser" }
-kermlc_hir = { path = "crates/kermlc_hir" }
+harpoon_hir = { path = "crates/harpoon_hir" }
 kermlc_lower = { path = "crates/kermlc_lower" }
-kermlc_resolve = { path = "crates/kermlc_resolve" }
-kermlc_typeck = { path = "crates/kermlc_typeck" }
-kermlc_validate = { path = "crates/kermlc_validate" }
-kermlc_serial_json = { path = "crates/kermlc_serial_json" }
+harpoon_resolve = { path = "crates/harpoon_resolve" }
+harpoon_typeck = { path = "crates/harpoon_typeck" }
+harpoon_validate = { path = "crates/harpoon_validate" }
+harpoon_serial_json = { path = "crates/harpoon_serial_json" }
 harpoon = { path = "crates/harpoon" }

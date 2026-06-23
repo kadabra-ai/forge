@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
-use kermlc_diagnostics::render_diagnostics;
-use kermlc_serial_json::serialize_to_json;
+use harpoon_diagnostics::render_diagnostics;
+use harpoon_serial_json::serialize_to_json;
 use std::process;
 
 use kermlc::compile_source;

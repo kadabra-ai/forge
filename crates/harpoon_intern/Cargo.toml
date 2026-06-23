@@ -1,5 +1,5 @@
 [package]
-name = "kermlc_intern"
+name = "harpoon_intern"
 version.workspace = true
 edition.workspace = true
 

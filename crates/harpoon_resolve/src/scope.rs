@@ -1,5 +1,5 @@
-use kermlc_hir::{DefId, SemanticModel};
-use kermlc_intern::SymbolId;
+use harpoon_hir::{DefId, SemanticModel};
+use harpoon_intern::SymbolId;
 
 /// Look up a name in the scope of a given def.
 /// Searches: own children, then ancestors' children, then root scope.
@@ -111,9 +111,9 @@ pub fn find_member(model: &SemanticModel, type_def_id: DefId, name: SymbolId) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kermlc_diagnostics::{DiagnosticSink, SourceMap};
+    use harpoon_diagnostics::{DiagnosticSink, SourceMap};
     use kermlc_lower::lower_ast;
-    use kermlc_intern::StringInterner;
+    use harpoon_intern::StringInterner;
     use kermlc_parser::Parser;
 
     fn parse_and_lower(input: &str) -> (SemanticModel, StringInterner, DiagnosticSink) {

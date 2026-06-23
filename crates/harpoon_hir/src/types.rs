@@ -1,5 +1,5 @@
-use kermlc_diagnostics::Span;
-use kermlc_intern::{Arena, Idx, SymbolId};
+use harpoon_diagnostics::Span;
+use harpoon_intern::{Arena, Idx, SymbolId};
 
 /// Direction modifier for a feature (in, out, inout).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -319,7 +319,7 @@ impl Default for SemanticModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kermlc_intern::StringInterner;
+    use harpoon_intern::StringInterner;
 
     #[test]
     fn alloc_membership() {
@@ -386,7 +386,7 @@ mod tests {
 
     #[test]
     fn mult_bound_ref_is_not_copy() {
-        let nr = NameRef::unresolved(vec![], Span::new(kermlc_diagnostics::FileId(0), 0, 0));
+        let nr = NameRef::unresolved(vec![], Span::new(harpoon_diagnostics::FileId(0), 0, 0));
         let bound = MultBound::Ref(nr);
         let _cloned = bound.clone();
     }

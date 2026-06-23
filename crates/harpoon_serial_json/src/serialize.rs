@@ -1,5 +1,5 @@
-use kermlc_hir::{DefKind, FeatureDirection, SemanticModel};
-use kermlc_intern::StringInterner;
+use harpoon_hir::{DefKind, FeatureDirection, SemanticModel};
+use harpoon_intern::StringInterner;
 use serde_json::{json, Value};
 
 /// Serialize a SemanticModel to JSON-LD format following the SysML v2 API structure.
@@ -208,14 +208,14 @@ fn build_elements(model: &SemanticModel, interner: &StringInterner) -> Vec<Value
 }
 
 fn mult_bound_to_json(
-    bound: &kermlc_hir::MultBound,
+    bound: &harpoon_hir::MultBound,
     model: &SemanticModel,
     interner: &StringInterner,
 ) -> Value {
     match bound {
-        kermlc_hir::MultBound::Exact(n) => json!(n),
-        kermlc_hir::MultBound::Unbounded => json!("*"),
-        kermlc_hir::MultBound::Ref(name_ref) => match name_ref.resolved_def() {
+        harpoon_hir::MultBound::Exact(n) => json!(n),
+        harpoon_hir::MultBound::Unbounded => json!("*"),
+        harpoon_hir::MultBound::Ref(name_ref) => match name_ref.resolved_def() {
             Some(def_id) => {
                 let name = interner.resolve(model.defs[def_id].name);
                 json!({
@@ -240,12 +240,12 @@ fn mult_bound_to_json(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kermlc_diagnostics::{DiagnosticSink, SourceMap};
+    use harpoon_diagnostics::{DiagnosticSink, SourceMap};
     use kermlc_lower::lower_ast;
-    use kermlc_intern::StringInterner;
+    use harpoon_intern::StringInterner;
     use kermlc_parser::Parser;
-    use kermlc_resolve::{emit_unresolved_errors, resolve_pass};
-    use kermlc_typeck::typecheck_pass;
+    use harpoon_resolve::{emit_unresolved_errors, resolve_pass};
+    use harpoon_typeck::typecheck_pass;
 
     fn compile_and_serialize(input: &str) -> String {
         let mut interner = StringInterner::new();

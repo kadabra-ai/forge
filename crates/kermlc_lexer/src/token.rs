@@ -1,4 +1,4 @@
-use kermlc_diagnostics::Span;
+use harpoon_diagnostics::Span;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TokenKind {
