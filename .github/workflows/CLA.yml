@@ -3,7 +3,8 @@ name: CLA
 # Minimal CLA check — no third-party action, no PAT.
 # Uses only the GitHub-maintained actions/github-script and the per-run GITHUB_TOKEN
 # (scoped to this repository, expires when the job ends). Signatures are stored in
-# signatures/cla.json on the default branch. This workflow never checks out PR code.
+# signatures/cla.json on the unprotected `cla-signatures` branch, so the protected
+# default branch is never written to. This workflow never checks out PR code.
 on:
   pull_request_target: # zizmor: ignore[dangerous-triggers] required to comment/set status on fork PRs; no PR code is checked out
     types: [opened, reopened, synchronize]
@@ -32,7 +33,7 @@ jobs:
             const CLA_URL = 'https://github.com/kadabra-ai/forge/blob/main/CLA.md';
             const STATUS_CONTEXT = 'license/cla';
             const { owner, repo } = context.repo;
-            const branch = context.payload.repository.default_branch;
+            const branch = 'cla-signatures';
 
             async function loadSignatures() {
               try {
