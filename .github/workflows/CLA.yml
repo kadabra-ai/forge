@@ -34,6 +34,9 @@ jobs:
             const STATUS_CONTEXT = 'license/cla';
             const { owner, repo } = context.repo;
             const branch = 'cla-signatures';
+            // Maintainers already hold copyright to their own contributions, and bots
+            // cannot agree to a CLA — exempt them so the check passes without signing.
+            const ALLOWLIST = ['mjaric', 'dependabot[bot]', 'github-actions[bot]'];
 
             async function loadSignatures() {
               try {
@@ -53,6 +56,10 @@ jobs:
 
             function hasSigned(store, login) {
               return store.data.signedContributors.some((c) => c.login.toLowerCase() === login.toLowerCase());
+            }
+
+            function isCleared(store, login) {
+              return ALLOWLIST.some((a) => a.toLowerCase() === login.toLowerCase()) || hasSigned(store, login);
             }
 
             async function setStatus(sha, signed) {
@@ -84,13 +91,13 @@ jobs:
                 await saveSignatures(store, `chore(cla): @${signer.login} signed the CLA (#${issue.number})`);
                 store = await loadSignatures();
               }
-              await setStatus(pr.head.sha, hasSigned(store, pr.user.login));
+              await setStatus(pr.head.sha, isCleared(store, pr.user.login));
               return;
             }
 
             const pr = context.payload.pull_request;
             const store = await loadSignatures();
-            const signed = hasSigned(store, pr.user.login);
+            const signed = isCleared(store, pr.user.login);
             await setStatus(pr.head.sha, signed);
 
             if (!signed) {
