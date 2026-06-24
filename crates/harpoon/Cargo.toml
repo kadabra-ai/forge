@@ -2,6 +2,7 @@
 name = "harpoon"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 harpoon_intern = { workspace = true }
