@@ -1,3 +1,11 @@
 {
-  "signedContributors": []
+  "signedContributors": [
+    {
+      "login": "burmajam",
+      "id": 176149,
+      "pull_request_no": 6,
+      "comment_id": 4788922073,
+      "created_at": "2026-06-24T11:47:27.737Z"
+    }
+  ]
 }
