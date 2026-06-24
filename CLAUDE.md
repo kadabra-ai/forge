@@ -109,8 +109,9 @@ The `vendor/SysML-v2-Release/` folder contains the official OMG specification ma
 Use `bnf/KerML-textual-bnf.kebnf` as the authoritative grammar reference. Use `kerml/src/examples/` for integration test sources. Use `sysml.library/Kernel Libraries/Kernel Semantic Library/` for B2 (stdlib-from-files) implementation.
 
 IMPORTANT: 
-- `vendor/SysML-v2-Release/doc` folder pdf files are big, so there are markdown versions without images. Use the markdown versions for quick reference, quick search, etc.
+- The big spec PDFs live in `vendor/SysML-v2-Release/doc/`. Text-only Markdown conversions are in `docs/spec/*.md` — use these for quick search/reference. Diagrams and code formatting are lost in that Markdown: read figures from the source PDF directly via the Read tool's `pages` parameter, or from the per-figure PNGs in `docs/spec/kermlc/`.
 - `vendor/SysML-v2-Release/bnf/KerML-textual-bnf.kebnf` contains grammar rules.
+- `vendor/KerML-v1/` holds the KerML 1.0 kernel Data Type + Function libraries (`.kerml` + `.kpar` archives) — source material for B2 (stdlib-from-files) and D3 (KPAR).
 
 ## Progress Tracking
 
