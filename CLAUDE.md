@@ -144,3 +144,11 @@ Canonical triage vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `r
 ### Domain docs
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Agent team (issue-driven development)
+
+`/work-next-issue [#N]` orchestrates a team of five subagents (`spec-oracle`, `planner`,
+`rust-implementer`, `reviewer`, `qa`) to take a `ready-for-agent` issue from spec research →
+plan (GATE) → test-first implementation in a worktree → three-axis review → PR (you squash-merge).
+The `spec-oracle` is the sole holder of the `mcp__spec__*` tools. Design:
+`docs/plans/2026-06-25-issue-driven-agent-team-design.md`.
