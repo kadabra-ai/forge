@@ -6,7 +6,7 @@ Status: Approved (design)
 ## Purpose
 
 Build and test features specified in GitHub issues of `kadabra-ai/forge`, driven by an
-orchestrator command and a team of four specialist subagents. The team picks the next
+orchestrator command and a team of five specialist subagents. The team picks the next
 `ready-for-agent` issue (respecting dependencies), researches the KerML specification as an
 oracle, plans, implements test-first in an isolated worktree, then verifies along three
 independent axes (standards, spec, behavior) before opening a PR for the user to squash-merge.
@@ -35,7 +35,7 @@ diff), and it is the only agent holding the spec MCP tools.
 
 ## Roster
 
-The orchestrator (the command, in the main session) dispatches four subagents in `.claude/agents/`.
+The orchestrator (the command, in the main session) dispatches five subagents in `.claude/agents/`.
 
 | Agent | Role | Tools (least privilege) | Phase |
 |---|---|---|---|

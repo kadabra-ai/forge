@@ -120,6 +120,8 @@ dependencies = [
  "harpoon_serial_json",
  "harpoon_typeck",
  "harpoon_validate",
+ "kermlc_lower",
+ "kermlc_parser",
 ]
 
 [[package]]
