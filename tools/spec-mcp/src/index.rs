@@ -1,8 +1,23 @@
 use anyhow::Result;
 use std::collections::HashMap;
+use std::sync::LazyLock;
+
+use regex::Regex;
 
 use crate::bnf::{parse_bnf, Production};
 use crate::clause_tree::{extract_clause_tree, ClauseNode};
+
+#[derive(Clone, Debug)]
+pub struct FigureRef {
+    pub number: u32,
+    pub title: String,
+    pub image_path: String,
+    pub clause_id: String,
+}
+
+static FIGURE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"!\[\]\((_page_[^)]+\.jpeg)\)\s*\n\s*\*\*Figure (\d+)\.\s*(.+?)\*\*").unwrap()
+});
 
 pub struct SpecIndex {
     src: String,
@@ -10,6 +25,8 @@ pub struct SpecIndex {
     by_id: HashMap<String, usize>,
     productions: Vec<Production>,
     productions_by_clause: HashMap<String, Vec<usize>>,
+    figures: Vec<FigureRef>,
+    figures_by_clause: HashMap<String, Vec<usize>>,
 }
 
 impl SpecIndex {
@@ -36,6 +53,21 @@ impl SpecIndex {
         let clause = self.clause(clause_id)?;
         Some(&self.src[clause.body_start..clause.body_end])
     }
+
+    pub fn figures(&self) -> &[FigureRef] {
+        &self.figures
+    }
+
+    pub fn figures_for_clause(&self, clause_id: &str) -> Vec<&FigureRef> {
+        self.figures_by_clause
+            .get(clause_id)
+            .map(|idxs| idxs.iter().map(|&i| &self.figures[i]).collect())
+            .unwrap_or_default()
+    }
+
+    pub fn resolve_anchor(&self, anchor: &str) -> Option<&ClauseNode> {
+        self.clauses.iter().find(|c| c.anchor == anchor)
+    }
 }
 
 pub fn build_index(md: &str, bnf_src: &str) -> Result<SpecIndex> {
@@ -55,11 +87,58 @@ pub fn build_index(md: &str, bnf_src: &str) -> Result<SpecIndex> {
             .push(i);
     }
 
+    let (figures, figures_by_clause) = extract_figures(md, &clauses);
+
     Ok(SpecIndex {
         src: md.to_string(),
         clauses,
         by_id,
         productions,
         productions_by_clause,
+        figures,
+        figures_by_clause,
     })
+}
+
+fn extract_figures(
+    md: &str,
+    clauses: &[ClauseNode],
+) -> (Vec<FigureRef>, HashMap<String, Vec<usize>>) {
+    let mut figures = Vec::new();
+    for caps in FIGURE_RE.captures_iter(md) {
+        let image_path = caps.get(1).unwrap().as_str().to_string();
+        let number: u32 = caps.get(2).unwrap().as_str().parse().unwrap_or(0);
+        let title = caps.get(3).unwrap().as_str().trim().to_string();
+        let match_start = caps.get(0).unwrap().start();
+        let clause_id = find_clause_for_byte(clauses, match_start);
+        figures.push(FigureRef {
+            number,
+            title,
+            image_path,
+            clause_id,
+        });
+    }
+
+    let mut by_clause: HashMap<String, Vec<usize>> = HashMap::new();
+    for (i, f) in figures.iter().enumerate() {
+        by_clause
+            .entry(f.clause_id.clone())
+            .or_default()
+            .push(i);
+    }
+
+    (figures, by_clause)
+}
+
+fn find_clause_for_byte(clauses: &[ClauseNode], byte: usize) -> String {
+    let mut best = String::new();
+    for c in clauses {
+        if c.body_start <= byte
+            && byte < c.body_end
+            && (best.is_empty() || c.id.len() > best.len())
+        {
+            best = c.id.clone();
+        }
+    }
+    best
 }

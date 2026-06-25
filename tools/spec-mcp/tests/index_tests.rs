@@ -56,3 +56,19 @@ fn builds_index_from_real_spec_and_bnf() {
     let body = idx.body_for_clause("8.2.4.3.1").unwrap();
     assert!(!body.is_empty(), "8.2.4.3.1 should have body text");
 }
+
+#[test]
+fn extracts_figures_from_real_spec() {
+    let md = std::fs::read_to_string(
+        "../../docs/spec/1-Kernel_Modeling_Language/1-Kernel_Modeling_Language.md",
+    )
+    .unwrap();
+    let idx = build_index(&md, "").unwrap();
+    let figures = idx.figures();
+    assert!(figures.len() >= 30, "expected >=30 figures, got {}", figures.len());
+    let fig1 = figures.iter().find(|f| f.number == 1).unwrap();
+    assert_eq!(fig1.title, "KerML Syntax Layers");
+    assert_eq!(fig1.clause_id, "8.3.1");
+    let figs_for_clause = idx.figures_for_clause("8.3.1");
+    assert!(!figs_for_clause.is_empty(), "8.3.1 should have figures");
+}
