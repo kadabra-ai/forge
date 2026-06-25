@@ -22,9 +22,11 @@ Produce a findings report:
 - Any constraints the existing implementation must satisfy.
 
 ### Review mode — "does this diff match the spec?"
-Given a worktree path and diff base, read the diff and check it against the governing clauses/BNF.
-End with a single verdict line: `SPEC: PASS` or `SPEC: FAIL`, followed by a numbered list of
-violations, each citing the clause/BNF rule it breaks.
+The orchestrator passes the diff as text in your prompt (you are read-only and have no `Bash`); use
+`Read`/`Grep` on the named worktree only if you need surrounding context. Check it against the
+governing clauses/BNF. End with a single verdict line: `SPEC: PASS` or `SPEC: FAIL`. On `FAIL`,
+follow it with a numbered list of violations, each citing the clause/BNF rule it breaks. On `PASS`,
+list the clauses/BNF rules you checked and confirm each is satisfied.
 
 ## Rules
 - Never answer from memory alone. Cite the clause ID or BNF rule for every claim.

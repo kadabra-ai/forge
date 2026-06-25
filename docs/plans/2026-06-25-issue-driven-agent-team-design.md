@@ -101,8 +101,9 @@ plus explicit override is sufficient.
 
 - **Gates:** GATE 1 after spec+plan (before any code); GATE 2 before merge (never auto-merge).
   Everything between runs autonomously, including opening the PR.
-- **Worktree isolation:** each issue gets its own worktree under the existing `.claude/worktrees/`;
-  the implementer never touches the main checkout.
+- **Worktree isolation:** each issue gets its own worktree (branch `issue-<n>`) created via
+  `superpowers:using-git-worktrees`, which chooses the location; the implementer never touches the
+  main checkout.
 - **Bounded retry:** review failures feed findings back to the implementer, capped at 2 rounds,
   then surfaced to the user rather than looping.
 

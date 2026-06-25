@@ -21,5 +21,5 @@ You implement one approved plan for the **forge** KerML compiler, test-first, in
 The plan cites spec clause IDs. If the plan and the spec appear to conflict, STOP and report it in your final message rather than guessing — the orchestrator will re-engage the spec-oracle.
 
 ## Output
-Final message: list of commits made, the exact `cargo test` command run and its PASS/FAIL result,
-and any deviations from the plan with reasons.
+Final message: list of commits made, the exact `cargo test` and `cargo clippy` commands run and
+their PASS/FAIL results, and any deviations from the plan with reasons.
