@@ -137,7 +137,7 @@ Inherit (no per-agent override). The user will test `sonnet` for `rust-implement
     ├── rust-implementer.md
     ├── reviewer.md
     └── qa.md
-docs/superpowers/specs/2026-06-25-issue-driven-agent-team-design.md   # this design
+docs/plans/2026-06-25-issue-driven-agent-team-design.md   # this design
 ```
 
 ## Out of scope
