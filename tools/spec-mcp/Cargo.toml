@@ -9,12 +9,12 @@ publish = false
 
 [dependencies]
 rmcp = { version = "1.8.0", features = ["server", "macros"] }
-tree-sitter-md = "0.5.3"
 tokio = { version = "1.52.3", features = ["io-util", "rt-multi-thread", "macros"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0"
 schemars = "1.2.1"
 anyhow = "1.0.102"
+regex = "1.12.4"
 
 [lib]
 name = "spec_mcp"
