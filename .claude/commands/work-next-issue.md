@@ -10,7 +10,7 @@ dispatch subagents (Task tool), and you are the ONLY one who pauses at user gate
 Argument: `$1` (optional issue number, may be empty).
 
 ## 0. SELECT
-- If `$1` is given: read it (`gh issue view <n> --json number,title,body,labels`). Guard: it must be open and labeled `ready-for-agent`. Check it is unblocked (see graph below); if blocked, WARN, list blockers, and ask whether to continue.
+- If `$1` is given: read it (`gh issue view <n> --json number,title,body,labels`). Guard: it must be open and labeled `ready-for-agent`. Check it is unblocked (use both native sub-issues and the `## Blocked by` section — same logic as the worklist path below); if blocked, WARN, list blockers, and ask whether to continue.
 - If `$1` is empty: build the worklist:
   1. `gh issue list --state open --label ready-for-agent --json number,title,body,labels`.
   2. For each, compute blockers from BOTH sources:
@@ -30,7 +30,7 @@ Dispatch the `planner` subagent with the issue + the spec-oracle findings. It re
 Show the user the plan path and a summary. STOP and wait for explicit approval before any code.
 
 ## 3. SETUP
-Create an isolated worktree for the issue (invoke `superpowers:using-git-worktrees`), branch named for the issue.
+Create an isolated worktree for the issue (invoke `superpowers:using-git-worktrees`), branch named for the issue. Name the branch `issue-<n>`. Record the worktree's starting commit (`git -C <worktree> merge-base main HEAD`) as <base> for the §5 review diffs.
 
 ## 4. BUILD
 Dispatch the `rust-implementer` subagent with the plan doc path + worktree path.
