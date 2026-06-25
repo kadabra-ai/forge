@@ -45,8 +45,8 @@ fn parse_section(section: &Node, src: &[u8]) -> Option<ClauseNode> {
             if child.kind() == "atx_heading" {
                 let heading_text = child.utf8_text(src).unwrap_or_default();
                 let level = heading_level(&child)?;
-                let anchor = extract_anchor(&heading_text);
-                let raw = raw_title(&heading_text);
+                let anchor = extract_anchor(heading_text);
+                let raw = raw_title(heading_text);
                 let id = clause_id_from_title(&raw)?;
                 let title = strip_clause_number(&raw);
                 let line = child.start_position().row + 1;
