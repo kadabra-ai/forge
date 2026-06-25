@@ -36,7 +36,7 @@ pub fn resolve_pass(
 }
 
 /// Emit diagnostics for anything still unresolved after fixpoint completes.
-pub fn emit_unresolved_errors(
+pub(crate) fn emit_unresolved_errors(
     model: &SemanticModel,
     interner: &StringInterner,
     sink: &mut DiagnosticSink,
@@ -80,7 +80,7 @@ pub fn emit_unresolved_errors(
 ///
 /// Uses iterative DFS with three colors:
 /// - white (unvisited), gray (in current path), black (fully explored).
-pub fn detect_specialization_cycles(
+pub(crate) fn detect_specialization_cycles(
     model: &SemanticModel,
     interner: &StringInterner,
     sink: &mut DiagnosticSink,
