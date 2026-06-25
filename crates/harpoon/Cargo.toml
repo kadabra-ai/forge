@@ -12,7 +12,3 @@ harpoon_resolve = { workspace = true }
 harpoon_typeck = { workspace = true }
 harpoon_validate = { workspace = true }
 harpoon_serial_json = { workspace = true }
-
-[dev-dependencies]
-kermlc_parser = { workspace = true }
-kermlc_lower = { workspace = true }
