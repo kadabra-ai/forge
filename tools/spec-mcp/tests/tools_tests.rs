@@ -67,6 +67,20 @@ fn follow_anchor_link_resolves_to_clause() {
 }
 
 #[test]
+fn follow_anchor_link_on_figure_resolves_to_enclosing_clause() {
+    let md = std::fs::read_to_string(
+        "../../docs/spec/1-Kernel_Modeling_Language/1-Kernel_Modeling_Language.md",
+    )
+    .unwrap();
+    let crates_dir = std::path::PathBuf::from("../../crates");
+    let server = SpecServer::new(md, "".to_string(), crates_dir).unwrap();
+    let result = server.follow_link_impl("#page-131-2");
+    assert_eq!(result.kind, "section");
+    assert_eq!(result.clause_id.as_deref(), Some("8.3.1"));
+    assert_eq!(result.title.as_deref(), Some("Abstract Syntax Overview"));
+}
+
+#[test]
 fn follow_anchor_link_not_found() {
     let server = build_test_server();
     let result = server.follow_link_impl("#nonexistent");

@@ -19,6 +19,10 @@ static FIGURE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"!\[\]\((_page_[^)]+\.jpeg)\)\s*\n\s*\*\*Figure (\d+)\.\s*(.+?)\*\*").unwrap()
 });
 
+static SPAN_ANCHOR_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"<span id="([^"]+)"></span>"#).unwrap()
+});
+
 pub struct SpecIndex {
     src: String,
     clauses: Vec<ClauseNode>,
@@ -27,6 +31,7 @@ pub struct SpecIndex {
     productions_by_clause: HashMap<String, Vec<usize>>,
     figures: Vec<FigureRef>,
     figures_by_clause: HashMap<String, Vec<usize>>,
+    anchor_to_clause: HashMap<String, String>,
 }
 
 impl SpecIndex {
@@ -66,6 +71,9 @@ impl SpecIndex {
     }
 
     pub fn resolve_anchor(&self, anchor: &str) -> Option<&ClauseNode> {
+        if let Some(clause_id) = self.anchor_to_clause.get(anchor) {
+            return self.clause(clause_id);
+        }
         self.clauses.iter().find(|c| c.anchor == anchor)
     }
 }
@@ -88,6 +96,7 @@ pub fn build_index(md: &str, bnf_src: &str) -> Result<SpecIndex> {
     }
 
     let (figures, figures_by_clause) = extract_figures(md, &clauses);
+    let anchor_to_clause = build_anchor_map(md, &clauses);
 
     Ok(SpecIndex {
         src: md.to_string(),
@@ -97,6 +106,7 @@ pub fn build_index(md: &str, bnf_src: &str) -> Result<SpecIndex> {
         productions_by_clause,
         figures,
         figures_by_clause,
+        anchor_to_clause,
     })
 }
 
@@ -141,4 +151,17 @@ fn find_clause_for_byte(clauses: &[ClauseNode], byte: usize) -> String {
         }
     }
     best
+}
+
+fn build_anchor_map(md: &str, clauses: &[ClauseNode]) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    for caps in SPAN_ANCHOR_RE.captures_iter(md) {
+        let anchor = caps.get(1).unwrap().as_str().to_string();
+        let byte = caps.get(0).unwrap().start();
+        let clause_id = find_clause_for_byte(clauses, byte);
+        if !clause_id.is_empty() {
+            map.insert(anchor, clause_id);
+        }
+    }
+    map
 }
