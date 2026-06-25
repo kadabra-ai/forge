@@ -1,4 +1,4 @@
-use spec_mcp::bnf::{parse_bnf, Production};
+use spec_mcp::bnf::parse_bnf;
 
 const SAMPLE: &str = "\
 // Clause 8.2.2.1 Line Terminators and White Space

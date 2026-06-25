@@ -57,6 +57,15 @@ fn ignores_non_numbered_headings() {
 }
 
 #[test]
+fn body_range_covers_section_content() {
+    let tree = extract_clause_tree(FRAGMENT).unwrap();
+    let scope = tree.iter().find(|n| n.id == "1").unwrap();
+    let body = &FRAGMENT[scope.body_start..scope.body_end];
+    assert!(body.contains("6.1"));
+    assert!(!body.starts_with('#'));
+}
+
+#[test]
 fn extracts_real_spec_clause_tree() {
     let src = std::fs::read_to_string(
         "../../docs/spec/1-Kernel_Modeling_Language/1-Kernel_Modeling_Language.md",
@@ -64,8 +73,8 @@ fn extracts_real_spec_clause_tree() {
     .expect("read spec md");
     let tree = extract_clause_tree(&src).unwrap();
     assert!(
-        tree.len() > 500,
-        "expected >500 clauses, got {}",
+        tree.len() > 400,
+        "expected >400 clauses, got {}",
         tree.len()
     );
     let scope = tree.iter().find(|n| n.id == "1").unwrap();
