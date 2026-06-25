@@ -12,12 +12,21 @@ use crate::index::{build_index, SpecIndex};
 pub struct SpecServer {
     index: SpecIndex,
     crates_dir: PathBuf,
+    spec_dir: PathBuf,
 }
 
 impl SpecServer {
     pub fn new(md: String, bnf_src: String, crates_dir: PathBuf) -> Result<Self> {
         let index = build_index(&md, &bnf_src)?;
-        Ok(Self { index, crates_dir })
+        let spec_dir = crates_dir
+            .parent()
+            .unwrap_or(&crates_dir)
+            .join("docs/spec/1-Kernel_Modeling_Language");
+        Ok(Self {
+            index,
+            crates_dir,
+            spec_dir,
+        })
     }
 
     pub fn list_sections_impl(&self) -> Vec<ClauseSummary> {
@@ -83,6 +92,55 @@ impl SpecServer {
             })
             .collect()
     }
+
+    pub fn get_figure_impl(&self, figure_number: u32) -> Option<FigureResult> {
+        let fig = self.index.figures().iter().find(|f| f.number == figure_number)?;
+        let image_path = self.spec_dir.join(&fig.image_path);
+        let abs_path = image_path.to_string_lossy().to_string();
+        Some(FigureResult {
+            number: fig.number,
+            title: fig.title.clone(),
+            image_path: abs_path,
+            clause_id: fig.clause_id.clone(),
+        })
+    }
+
+    pub fn follow_link_impl(&self, link: &str) -> LinkResult {
+        if let Some(anchor) = link.strip_prefix('#') {
+            if let Some(clause) = self.index.resolve_anchor(anchor) {
+                return LinkResult {
+                    kind: "section".to_string(),
+                    clause_id: Some(clause.id.clone()),
+                    title: Some(clause.title.clone()),
+                    url: None,
+                    error: None,
+                };
+            }
+            return LinkResult {
+                kind: "anchor_not_found".to_string(),
+                clause_id: None,
+                title: None,
+                url: None,
+                error: Some(format!("No clause with anchor '{anchor}'")),
+            };
+        }
+        if link.starts_with("http://") || link.starts_with("https://") {
+            return LinkResult {
+                kind: "url".to_string(),
+                clause_id: None,
+                title: None,
+                url: Some(link.to_string()),
+                error: None,
+            };
+        }
+        LinkResult {
+            kind: "unknown".to_string(),
+            clause_id: None,
+            title: None,
+            url: None,
+            error: Some(format!("Unrecognized link format: {link}")),
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
@@ -133,6 +191,38 @@ pub struct ImplResult {
     pub entry_points: Vec<String>,
 }
 
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
+pub struct FigureQuery {
+    pub figure_number: u32,
+}
+
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
+pub struct FigureResult {
+    pub number: u32,
+    pub title: String,
+    pub image_path: String,
+    pub clause_id: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
+pub struct GetFigureResult {
+    pub figure: Option<FigureResult>,
+}
+
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
+pub struct FollowLinkQuery {
+    pub link: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LinkResult {
+    pub kind: String,
+    pub clause_id: Option<String>,
+    pub title: Option<String>,
+    pub url: Option<String>,
+    pub error: Option<String>,
+}
+
 #[rmcp::tool_router]
 impl SpecServer {
     #[tool(name = "list_sections", description = "List the KerML spec clause tree")]
@@ -168,6 +258,24 @@ impl SpecServer {
         rmcp::handler::server::wrapper::Parameters(ImplQuery { clause_id }): rmcp::handler::server::wrapper::Parameters<ImplQuery>,
     ) -> Json<ImplResult> {
         Json(self.find_implementation_impl(&clause_id))
+    }
+
+    #[tool(name = "get_figure", description = "Get a spec figure by number, returns image path and owning clause")]
+    fn get_figure(
+        &self,
+        rmcp::handler::server::wrapper::Parameters(FigureQuery { figure_number }): rmcp::handler::server::wrapper::Parameters<FigureQuery>,
+    ) -> Json<GetFigureResult> {
+        Json(GetFigureResult {
+            figure: self.get_figure_impl(figure_number),
+        })
+    }
+
+    #[tool(name = "follow_link", description = "Follow a link from the spec: #anchor resolves to a clause, http(s) URL fetches content")]
+    fn follow_link(
+        &self,
+        rmcp::handler::server::wrapper::Parameters(FollowLinkQuery { link }): rmcp::handler::server::wrapper::Parameters<FollowLinkQuery>,
+    ) -> Json<LinkResult> {
+        Json(self.follow_link_impl(&link))
     }
 }
 
