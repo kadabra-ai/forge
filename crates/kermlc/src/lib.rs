@@ -19,7 +19,7 @@ pub struct CompiledModel {
 ///
 /// Runs, in order: parse → lower to HIR → load stdlib → add implicit
 /// specializations → `harpoon::compile` (resolve/typeck fixpoint,
-/// emit_unresolved_errors, detect_specialization_cycles, validate).
+/// finalize_resolution, validate).
 ///
 /// The `file_name` parameter is used only for diagnostic messages.
 ///
