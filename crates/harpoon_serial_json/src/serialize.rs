@@ -244,7 +244,7 @@ mod tests {
     use kermlc_lower::lower_ast;
     use harpoon_intern::StringInterner;
     use kermlc_parser::Parser;
-    use harpoon_resolve::{emit_unresolved_errors, resolve_pass};
+    use harpoon_resolve::{finalize_resolution, resolve_pass};
     use harpoon_typeck::typecheck_pass;
 
     fn compile_and_serialize(input: &str) -> String {
@@ -262,7 +262,7 @@ mod tests {
                 break;
             }
         }
-        emit_unresolved_errors(&model, &interner, &mut sink);
+        finalize_resolution(&model, &interner, &mut sink);
 
         serialize_to_json(&model, &interner)
     }

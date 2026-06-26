@@ -36,7 +36,7 @@ pub fn resolve_pass(
 }
 
 /// Emit diagnostics for anything still unresolved after fixpoint completes.
-pub fn emit_unresolved_errors(
+pub(crate) fn emit_unresolved_errors(
     model: &SemanticModel,
     interner: &StringInterner,
     sink: &mut DiagnosticSink,
@@ -80,7 +80,7 @@ pub fn emit_unresolved_errors(
 ///
 /// Uses iterative DFS with three colors:
 /// - white (unvisited), gray (in current path), black (fully explored).
-pub fn detect_specialization_cycles(
+pub(crate) fn detect_specialization_cycles(
     model: &SemanticModel,
     interner: &StringInterner,
     sink: &mut DiagnosticSink,
@@ -151,6 +151,27 @@ pub fn detect_specialization_cycles(
     }
 
     found_cycle
+}
+
+/// Finalize name resolution after the resolve/typecheck fixpoint converges.
+///
+/// Runs the post-fixpoint resolution finalizers in the order the engine
+/// requires: first emit diagnostics for anything still unresolved, then detect
+/// circular specialization chains. Both steps only read `model` and write into
+/// `sink`; callers run this once, after the fixpoint loop and before
+/// `validate`.
+///
+/// Args:
+///     model: The resolved semantic model (read-only at this stage).
+///     interner: Shared string interner for rendering names in diagnostics.
+///     sink: Diagnostic collector; inspect `sink.has_errors()` afterwards.
+pub fn finalize_resolution(
+    model: &SemanticModel,
+    interner: &StringInterner,
+    sink: &mut DiagnosticSink,
+) {
+    emit_unresolved_errors(model, interner, sink);
+    let _ = detect_specialization_cycles(model, interner, sink);
 }
 
 fn emit_unresolved(
@@ -645,4 +666,35 @@ mod tests {
         );
     }
 
+    #[test]
+    fn finalize_resolution_emits_unresolved_errors() {
+        let (mut model, interner, mut sink) =
+            parse_and_lower("package P { type A :> NonExistent {} }");
+        resolve_pass(&mut model, &interner, &mut sink);
+
+        finalize_resolution(&model, &interner, &mut sink);
+
+        assert!(sink.has_errors());
+        let has_unresolved = sink
+            .diagnostics()
+            .iter()
+            .any(|d| d.message.contains("unresolved type `NonExistent`"));
+        assert!(has_unresolved, "finalizer must emit unresolved-name errors");
+    }
+
+    #[test]
+    fn finalize_resolution_detects_specialization_cycles() {
+        let (mut model, interner, mut sink) =
+            parse_and_lower("package P { type A :> B {} type B :> A {} }");
+        resolve_pass(&mut model, &interner, &mut sink);
+
+        finalize_resolution(&model, &interner, &mut sink);
+
+        assert!(sink.has_errors());
+        let has_cycle = sink
+            .diagnostics()
+            .iter()
+            .any(|d| d.message.contains("circular specialization"));
+        assert!(has_cycle, "finalizer must detect specialization cycles");
+    }
 }
